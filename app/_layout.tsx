@@ -9,6 +9,10 @@ export default function RootLayout() {
         options={{ headerTitle: "Login", headerShown: false }}
       />
       <Stack.Screen
+        name="(auth)/signup"
+        options={{ headerTitle: "Sign Up", headerShown: false }}
+      />
+      <Stack.Screen
         name="(tabs)"
         options={{ headerTitle: "Students", headerShown: false }}
       />

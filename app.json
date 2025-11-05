@@ -1,21 +1,43 @@
 {
   "expo": {
+    "name": "Class Tracker",
+    "slug": "ClassTracker",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icons/logo.png",
+    "scheme": "myapp",
+    "primaryColor": "#ffffff",
+    
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icons/logo.png",
+        "backgroundColor": "#ffffff"  
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/icons/logo.png"
+    },
     "plugins": [
+      "expo-router",
       [
         "expo-splash-screen",
         {
-          "ios": {
-            "backgroundColor": "#ffffff",
-            "image": "./assets/icons/LOG2.png",
-            "resizeMode": "cover"
-          },
-          "android": {
-            "backgroundColor": "#0c7cff",
-            "image": "./assets/images/splash-android-icon.png",
-            "imageWidth": 150
-          }
+          "image": "./assets/icons/logo.png",
+          "imageWidth": 200,
+          "resizeMode": "cover",
+          "backgroundColor": "#ffffff"
         }
       ]
-    ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
   }
 }
