@@ -4,6 +4,10 @@ import "../global.css";
 export default function RootLayout() {
   return (
     <Stack>
+       <Stack.Screen
+        name="(tabs)"
+        options={{ headerTitle: "Students", headerShown: false }}
+      />
       <Stack.Screen
         name="(auth)/login"
         options={{ headerTitle: "Login", headerShown: false }}
@@ -12,10 +16,7 @@ export default function RootLayout() {
         name="(auth)/signup"
         options={{ headerTitle: "Sign Up", headerShown: false }}
       />
-      <Stack.Screen
-        name="(tabs)"
-        options={{ headerTitle: "Students", headerShown: false }}
-      />
+     
       <Stack.Screen
         name="(attendance)/[id]"
         options={{ headerTitle: "Attendance Details", headerShown: false }}

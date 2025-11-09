@@ -7,22 +7,30 @@ import InputField from "../../components/InputField";
 import SocialAuthOptions from "../../components/SocialAuthOptions";
 const login = () => {
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   return (
     <View>
       <AuthHeader />
       <View className="mb-10 px-5 flex flex-col gap-4 ">
         <TextInput />
-        <View className=" justify-center ">
+        <View className=" justify-cente ">
           <InputField
             label="Your Email"
             value={email}
             onChangeText={setEmail}
             placeholder="example@mail.com"
+            secureTextEntry={false}
           />
 
-          <InputField label="Password" secureTextEntry placeholder="••••••••" />
+          <InputField
+            label="Password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={true}
+            placeholder="••••••••"
+          />
         </View>
-        <PrimaryButton />
+        <PrimaryButton title="Login" onPress={() => {}} />
 
         <View className="flex justify-center items-center mt-10">
           <Text className="text-sm ">
@@ -31,7 +39,7 @@ const login = () => {
               Sign Up
             </Link>
           </Text>
-          <SocialAuthOptions />
+          <SocialAuthOptions onGooglePress={() => {}} onFacebookPress={() => {}} />
         </View>
       </View>
     </View>
