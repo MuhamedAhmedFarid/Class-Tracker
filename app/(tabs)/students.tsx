@@ -1,5 +1,8 @@
 import PrimaryButton from "@/components/Button";
+import ErrorMsg from "@/components/ErrorMsg";
+import Spinner from "@/components/Spinner";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "expo-router";
 import { useState } from "react";
 import {
@@ -16,16 +19,56 @@ import StudentItem from "../../components/StudentItem";
 import TextInputField from "../../components/TextInputField";
 import "../../global.css";
 
-export default function RecentCalls() {
+// Mock data fetching function to simulate an API call
+const fetchStudents = async () => {
+  // Simulate network delay
+  await new Promise((resolve) => setTimeout(resolve, 800));
+
+  return [
+    {
+      id: "1",
+      name: "Team Align",
+      time: "Today, 09:30 AM",
+      image: "https://randomuser.me/api/portraits/men/32.jpg",
+    },
+    {
+      id: "2",
+      name: "Sarah Johnson",
+      time: "Yesterday, 05:20 PM",
+      image: "https://randomuser.me/api/portraits/women/45.jpg",
+    },
+    {
+      id: "3",
+      name: "Ali Hassan",
+      time: "Monday, 10:10 AM",
+      image: "https://randomuser.me/api/portraits/men/76.jpg",
+    },
+  ];
+};
+
+export default function Students() {
   const [isModalVisible, setModalVisible] = useState(false);
   const [isEditModalVisible, setEditModalVisible] = useState(false);
   const [isDeleteModalVisible, setDeleteModalVisible] = useState(false);
   const [editInputValue, setEditInputValue] = useState("");
   const [studentToDelete, setStudentToDelete] = useState<string | null>(null);
 
+  // Integrate useQuery to fetch students list
+  const {
+    data: students,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
+    queryKey: ["students"],
+    queryFn: fetchStudents,
+  });
+
   const handleAddStudent = (filters: any) => {
     console.log("Applied Filters:", filters);
-    // Here you would typically use these filters to update your data or UI
+    // In a real app, you would perform a mutation here:
+    // mutation.mutate(filters, { onSuccess: () => refetch() });
+    refetch(); // For mock, simply refetch to show how it would work
   };
 
   const handleEditStudent = (studentName: string) => {
@@ -51,31 +94,13 @@ export default function RecentCalls() {
   const handleConfirmDelete = () => {
     if (studentToDelete) {
       console.log("Deleted", studentToDelete);
-      // Here you would typically delete the student from your data
+      // In a real app, perform delete mutation:
+      // deleteMutation.mutate(studentToDelete, { onSuccess: () => refetch() });
       handleCloseDeleteModal();
     }
   };
-  const calls = [
-    {
-      id: "1",
-      name: "Team Align",
-      time: "Today, 09:30 AM",
-      image: "https://randomuser.me/api/portraits/men/32.jpg",
-    },
-    {
-      id: "2",
-      name: "Sarah Johnson",
-      time: "Yesterday, 05:20 PM",
-      image: "https://randomuser.me/api/portraits/women/45.jpg",
-    },
-    {
-      id: "3",
-      name: "Ali Hassan",
-      time: "Monday, 10:10 AM",
-      image: "https://randomuser.me/api/portraits/men/76.jpg",
-    },
-  ];
 
+  // Styles for modals (unchanged)
   const styles = StyleSheet.create({
     centeredView: {
       flex: 1,
@@ -98,40 +123,66 @@ export default function RecentCalls() {
     },
   });
 
+  // Handle Loading and Error States
+  if (isLoading) {
+    return <Spinner />;
+  }
+
+  if (isError || !students) {
+    return <ErrorMsg msg="Unable to load class sessions. Please try again." />;
+  }
+
   return (
-    <View className="flex-1 mt-24">
-      <SearchBar />
-      <View className="flex items-center my-10">
-        <Text className="text-2xl font-semibold">
-          Details of our <Text className="text-primary">Students</Text>
-        </Text>
+    <View className="flex-1 bg-white">
+      {/* Header and Search Area */}
+      <View className="pt-24 px-4 bg-white z-10 ">
+        <SearchBar />
+        <View className="flex items-center mt-4 mb-6">
+          <Text className="text-2xl font-semibold text-gray-800">
+            Details of our <Text className="text-primary">Students</Text>
+          </Text>
+        </View>
       </View>
-      <View className=" bg-gray-100 ">
+
+      {/* Student List */}
+      <View className="flex-1">
         <FlatList
-          contentContainerStyle={{ 
-            paddingBottom: 91
-        }}
-          data={calls}
+          data={students}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <Link href={`/${item.id}`}>
-              <StudentItem
-                name={item.name}
-                time={item.time}
-                image={item.image}
-                onEdit={() => handleEditStudent(item.name)}
-                onDelete={() => handleDeleteStudent(item.name)}
-              />
+            <Link href={`/(attendance)/${item.id}`} asChild>
+              <TouchableOpacity>
+                <StudentItem
+                  name={item.name}
+                  time={item.time}
+                  image={item.image}
+                  // Stop propagation to prevent navigation when clicking the action icons
+                  onEdit={(e: any) => {
+                    e.stopPropagation();
+                    handleEditStudent(item.name);
+                  }}
+                  onDelete={(e: any) => {
+                    e.stopPropagation();
+                    handleDeleteStudent(item.name);
+                  }}
+                />
+              </TouchableOpacity>
             </Link>
           )}
+          // Adding padding to the list itself
+          contentContainerStyle={{ paddingHorizontal: 4, paddingBottom: 100 }}
         />
+
+        {/* Floating Add Button */}
         <TouchableOpacity
-          onPress={() => setModalVisible(true)} // Add your desired action here
-          className="absolute top-[28rem] right-6 bg-primary w-14 h-14 rounded-full flex items-center justify-center shadow-lg"
+          onPress={() => setModalVisible(true)}
+          className="absolute bottom-24 right-6 bg-primary w-14 h-14 rounded-full flex items-center justify-center shadow-lg z-20"
         >
           <MaterialIcons name="add" size={30} color="white" />
         </TouchableOpacity>
       </View>
+
+      {/* Modals (omitted for brevity, they are placed at the end of the file in the full context) */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -145,6 +196,7 @@ export default function RecentCalls() {
           onApplyFilter={handleAddStudent}
         />
       </Modal>
+
       <Modal
         animationType="fade"
         transparent={true}
@@ -167,7 +219,12 @@ export default function RecentCalls() {
               placeholder="Enter new name"
               autoFocus={true}
             />
-            <PrimaryButton title="Edit" onPress={() => {}} />
+            <PrimaryButton
+              title="Edit"
+              onPress={() => {
+                /* Edit logic */
+              }}
+            />
           </View>
         </TouchableOpacity>
       </Modal>

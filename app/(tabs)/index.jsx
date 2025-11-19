@@ -1,3 +1,4 @@
+import ErrorMsg from '@/components/ErrorMsg';
 import Spinner from '@/components/Spinner';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from "@tanstack/react-query";
@@ -35,15 +36,7 @@ export default function Index() {
   }
 
   if (isError) {
-    return (
-      <View className="flex-1 justify-center items-center px-6 bg-gray-50">
-        <Ionicons name="alert-circle-outline" size={64} color="#EF4444" />
-        <Text className="text-2xl font-bold text-gray-800 mt-4">Oops!</Text>
-        <Text className="text-base text-gray-600 text-center mt-2">
-          Unable to load class sessions. Please try again.
-        </Text>
-      </View>
-    );
+    return <ErrorMsg msg="Unable to load class sessions. Please try again."/>
   }
 
   if (!classSessions || classSessions.length === 0) {
