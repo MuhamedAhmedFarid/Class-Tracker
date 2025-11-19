@@ -108,6 +108,9 @@ export default function RecentCalls() {
       </View>
       <View className=" bg-gray-100 ">
         <FlatList
+          contentContainerStyle={{ 
+            paddingBottom: 91
+        }}
           data={calls}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
