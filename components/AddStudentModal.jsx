@@ -16,21 +16,21 @@ const days = ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"];
 export const AddStudentModal = ({ onClose }) => {
   const [studentName, setStudentName] = useState("");
   const [selectedDays, setSelectedDays] = useState([]);
-  const [fromTime, setFromTime] = useState("6 : 10 PM"); 
-  const [toTime, setToTime] = useState("6 : 10 PM"); 
-  const [amount, setAmount] = useState("0.00");
+  // Default times
+  const [fromTime, setFromTime] = useState("9 : 00 AM"); 
+  const [toTime, setToTime] = useState("10 : 00 AM"); 
+  const [amount, setAmount] = useState("");
   
   const queryClient = useQueryClient();
   
   const addStudentMutation = useMutation({
     mutationFn: createNewStudent,
     onSuccess: () => {
-      // This line ensures the list updates immediately after adding
+      // Refresh list and close modal
       queryClient.invalidateQueries({ queryKey: ['students'] });
       onClose();
     },
     onError: (error) => {
-      console.error("Failed to add student:", error);
       alert("Failed to add student. " + error.message);
     }
   });
@@ -46,11 +46,16 @@ export const AddStudentModal = ({ onClose }) => {
   };
 
   const handleApply = () => {
+    if (!studentName.trim()) {
+        alert("Please enter a student name");
+        return;
+    }
+    
     addStudentMutation.mutate({ 
       studentName,
       selectedDays, 
-      fromTime, 
-      toTime, 
+      fromTime, // Passing Start Time
+      toTime,   // Passing End Time
       amount 
     });
   };
@@ -65,7 +70,7 @@ export const AddStudentModal = ({ onClose }) => {
         className="bg-white rounded-2xl p-6 w-11/12 max-w-md shadow-xl"
         onStartShouldSetResponder={() => true}
       >
-
+        {/* Name Input */}
         <View className="mb-1">
           <TextInputField
             label=""
@@ -76,6 +81,7 @@ export const AddStudentModal = ({ onClose }) => {
           />
         </View>
 
+        {/* Days Selection */}
         <View className="mb-4">
           <View className="flex-row flex-wrap gap-2">
             {days.map((day) => (
@@ -100,6 +106,7 @@ export const AddStudentModal = ({ onClose }) => {
           </View>
         </View>
 
+        {/* Time Pickers */}
         <View className="flex-row justify-between mb-6 gap-4">
           <View className="flex-1">
             <TimePickerField
@@ -120,6 +127,7 @@ export const AddStudentModal = ({ onClose }) => {
           </View>
         </View>
 
+        {/* Amount Input */}
         <View className="mb-8">
           <Text className="text-gray-600 text-sm mb-1">Select amount</Text>
           <View className="flex-row items-center border border-gray-300 rounded-lg p-3">
@@ -133,6 +141,8 @@ export const AddStudentModal = ({ onClose }) => {
             <Text className="text-gray-500 text-base ml-2">EGP</Text>
           </View>
         </View>
+
+        {/* Submit Button */}
         <PrimaryButton 
           title={addStudentMutation.isPending ? "Adding..." : "Add Student"} 
           onPress={handleApply}

@@ -1,8 +1,8 @@
 import { supabase } from '@/lib/supabase';
 
-// NEW: Static list of default profile picture URLs
+// Default avatar list
 const DEFAULT_AVATAR_POOL = [
-  'https://randomuser.me/api/portraits/lego/1.jpg', // The "lego kind of picture"
+  'https://randomuser.me/api/portraits/lego/1.jpg',
   'https://randomuser.me/api/portraits/lego/2.jpg',
   'https://randomuser.me/api/portraits/lego/3.jpg',
   'https://randomuser.me/api/portraits/lego/4.jpg',
@@ -12,50 +12,9 @@ const DEFAULT_AVATAR_POOL = [
   'https://randomuser.me/api/portraits/lego/8.jpg',
   'https://randomuser.me/api/portraits/lego/9.jpg',
   'https://randomuser.me/api/portraits/lego/10.jpg',
+  'https://randomuser.me/api/portraits/lego/11.jpg',
+  'https://randomuser.me/api/portraits/lego/12.jpg',
 ];
-
-// Helper function to format the database TIME string into a display string (e.g., "09:30 AM")
-const formatTimeForDisplay = (timeString) => {
-  if (!timeString) return "N/A";
-  try {
-    const [hoursStr, minutesStr, period] = timeString.split(/[: ]+/).filter(Boolean);
-    let hours = parseInt(hoursStr);
-    const minutes = parseInt(minutesStr);
-    
-    if (period === "PM" && hours !== 12) hours += 12;
-    if (period === "AM" && hours === 12) hours = 0;
-    
-    const date = new Date();
-    date.setHours(hours, minutes, 0, 0);
-
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-  } catch (e) {
-    return timeString;
-  }
-};
-
-// Helper function to format the database TIMESTAMP into a custom display string (e.g., "Today, 10:10 AM")
-const formatSessionTime = (timestamp) => {
-  if (!timestamp) return 'N/A';
-  try {
-    const date = new Date(timestamp);
-    if (isNaN(date.getTime())) return 'N/A';
-
-    const day = date.toLocaleDateString('en-US', { weekday: 'long' });
-    const time = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    
-    const today = new Date().toDateString();
-    const tsDate = date.toDateString();
-
-    if (today === tsDate) {
-        return `Today, ${time}`;
-    }
-    
-    return `${day}, ${time}`;
-  } catch (e) {
-    return timestamp;
-  }
-};
 
 const getTodayDayAbbreviation = () => {
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -66,15 +25,11 @@ const getTodayDayAbbreviation = () => {
  * --- READ OPERATIONS ---
  */
 
-/**
- * Fetches all students data from Supabase for the Students list page.
- */
 export const fetchStudentsFromSupabase = async ({ queryKey }) => {
-  const [key, searchQuery] = queryKey;
-    
+  // 1. Select the start_time and end_time columns
   let query = supabase
     .from('students')
-    .select('id, name, image_url, last_session_time, hourly_rate, days_of_week')
+    .select('id, name, image_url, last_session_time, hourly_rate, days_of_week, start_time, end_time')
     .order('name', { ascending: true });
 
   const { data, error } = await query;
@@ -84,40 +39,40 @@ export const fetchStudentsFromSupabase = async ({ queryKey }) => {
     throw new Error('Failed to load students.');
   }
   
-  // Map Supabase database fields to component props expected by StudentItem.jsx
   return data.map((student, index) => ({
     id: student.id,
     name: student.name,
-    // FIX: Cycle through default avatars if image_url is null
     image: student.image_url || DEFAULT_AVATAR_POOL[index % DEFAULT_AVATAR_POOL.length],
-    time: formatSessionTime(student.last_session_time),
+    // 2. Use the real data from the DB
+    startTime: student.start_time || "N/A", 
+    endTime: student.end_time || "N/A",
     hourlyRate: student.hourly_rate,
     daysOfWeek: student.days_of_week,
+    // Keep this for compatibility if needed, or remove if unused
+    time: `${student.start_time || 'N/A'} - ${student.end_time || 'N/A'}`, 
   }));
 };
 
-/**
- * Fetches students scheduled for today's classes (for the Home/Index page).
- */
 export const fetchTodayStudentsScheduled = async () => {
     const todayAbbr = getTodayDayAbbreviation();
     
+    // 3. Fetch real times for the Home Screen
     const { data, error } = await supabase
         .from('students')
-        .select(`id, name, days_of_week`)
+        .select(`id, name, days_of_week, start_time, end_time`)
         .contains('days_of_week', [todayAbbr])
         .order('name', { ascending: true });
 
     if (error) {
-        console.error("Error fetching today's scheduled students:", error);
-        throw new Error(`Failed to load scheduled students for ${todayAbbr}.`);
+        console.error("Error fetching today's schedule:", error);
+        throw new Error(`Failed to load scheduled students.`);
     }
 
     return data.map(student => ({
         name: student.name,
-        // Mock time fields as actual schedules are not granularly saved per day in the 'students' table
-        startDate: '10:00 AM', 
-        endDate: '12:00 PM',
+        // 4. Map DB columns to the props expected by the Student component
+        startDate: student.start_time || 'N/A', 
+        endDate: student.end_time || 'N/A',
         current: false, 
     }));
 };
@@ -126,14 +81,14 @@ export const fetchTodayStudentsScheduled = async () => {
  * --- WRITE OPERATIONS ---
  */
 
-/**
- * Creates a new student entry in the database.
- */
 export const createNewStudent = async ({ studentName, selectedDays, amount, fromTime, toTime }) => {
   const newStudentData = {
     name: studentName,
-    hourly_rate: parseFloat(amount),
+    hourly_rate: parseFloat(amount) || 0,
     days_of_week: selectedDays,
+    // 5. This is where we SAVE the data to Supabase
+    start_time: fromTime, 
+    end_time: toTime,     
     last_session_time: new Date().toISOString(), 
   };
   
@@ -145,40 +100,20 @@ export const createNewStudent = async ({ studentName, selectedDays, amount, from
 
   if (studentError) {
     console.error('Error creating student:', studentError);
-    throw new Error('Failed to create student: ' + studentError.message);
+    throw new Error(studentError.message);
   }
 
   return student;
 };
 
-/**
- * Updates a student's name in the database.
- */
 export const updateStudent = async ({ id, newName }) => {
-  const { error } = await supabase
-    .from('students')
-    .update({ name: newName })
-    .eq('id', id);
-
-  if (error) {
-    console.error('Error updating student:', error);
-    throw new Error('Failed to update student: ' + error.message);
-  }
+  const { error } = await supabase.from('students').update({ name: newName }).eq('id', id);
+  if (error) throw new Error(error.message);
   return true;
 };
 
-/**
- * Deletes a student entry from the database using their ID.
- */
 export const deleteStudent = async (id) => {
-  const { error } = await supabase
-    .from('students')
-    .delete()
-    .eq('id', id);
-
-  if (error) {
-    console.error('Error deleting student:', error);
-    throw new Error('Failed to delete student: ' + error.message);
-  }
+  const { error } = await supabase.from('students').delete().eq('id', id);
+  if (error) throw new Error(error.message);
   return true;
 };

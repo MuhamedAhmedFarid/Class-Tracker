@@ -6,11 +6,11 @@ export default function EmptyState({
   title = "No Data",
   description = "There is nothing here yet.",
   buttonText = "Refresh",
-//   onPress,
-  iconName = "albums-outline", // Default icon
+  onPress,
+  iconName = "albums-outline",
 }) {
   return (
-    <View className="flex-1 justify-center items-center px-8 py-12">
+    <View className="justify-center items-center px-8 py-12 w-full">
       {/* Icon with Background Glow */}
       <View className="relative mb-8">
         <View className="bg-white p-8 rounded-full shadow-xl z-10">

@@ -19,11 +19,9 @@ import Student from "../../components/student";
 import "../../global.css";
 
 export default function Index() {
-  // Animation Values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
 
-  // Data Fetching
   const {
     data: classSessions,
     isLoading,
@@ -36,7 +34,6 @@ export default function Index() {
     queryFn: fetchTodayStudentsScheduled,
   });
 
-  // Run Animation on Mount
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -53,7 +50,6 @@ export default function Index() {
     ]).start();
   }, []);
 
-  // Date Formatting
   const date = new Date();
   const dayName = date.toLocaleDateString("en-US", { weekday: "long" });
   const fullDate = date.toLocaleDateString("en-US", {
@@ -61,10 +57,8 @@ export default function Index() {
     day: "numeric",
   });
 
-  // Calculate Stats
   const sessionCount = classSessions ? classSessions.length : 0;
 
-  // --- LOADING STATE (Initial Load Only) ---
   if (isLoading) {
     return (
       <View className="flex-1 bg-gray-50 justify-center items-center">
@@ -73,7 +67,6 @@ export default function Index() {
     );
   }
 
-  // --- ERROR STATE ---
   if (isError) {
     return (
       <View className="flex-1 bg-gray-50 justify-center px-4">
@@ -94,7 +87,6 @@ export default function Index() {
     <View className="flex-1 bg-gray-50">
       <StatusBar style="dark" />
 
-      {/* --- BACKGROUND DECORATIONS (Blobs) --- */}
       <View className="absolute inset-0 overflow-hidden pointer-events-none">
         <View
           className="absolute -top-32 -right-32 w-64 h-64 bg-emerald-200 rounded-full opacity-20"
@@ -106,33 +98,26 @@ export default function Index() {
         />
       </View>
 
-      {/* --- ENHANCED HEADER SECTION --- */}
       <Animated.View
         style={{ opacity: fadeAnim, transform: [{ scale: scaleAnim }] }}
         className="bg-white pt-16 pb-8 px-6 rounded-b-[32px] shadow-lg z-10 border-b border-gray-100"
       >
         <View className="flex-row justify-between items-start">
           <View className="flex-1">
-            {/* Day Label with Icon */}
             <View className="flex-row items-center mb-2">
               <Ionicons name="sparkles" size={16} color="#00C897" />
               <Text className="text-xs font-bold text-[#00C897] uppercase tracking-widest ml-2">
                 {dayName}
               </Text>
             </View>
-
-            {/* Date */}
             <Text className="text-4xl font-black text-gray-900 mb-1">
               {fullDate}
             </Text>
-
-            {/* Subtitle */}
             <Text className="text-sm text-gray-500 font-medium">
               Your schedule for today
             </Text>
           </View>
 
-          {/* Enhanced Session Count Badge with Gradient */}
           <View className="relative">
             <LinearGradient
               colors={["#00C897", "#00A67E"]}
@@ -147,8 +132,6 @@ export default function Index() {
                 Classes
               </Text>
             </LinearGradient>
-
-            {/* Glow Effect Behind Badge */}
             <View
               className="absolute inset-0 bg-[#00C897] rounded-2xl opacity-30 blur-xl"
               style={{ transform: [{ scale: 1.1 }], zIndex: -1 }}
@@ -157,15 +140,13 @@ export default function Index() {
         </View>
       </Animated.View>
 
-      {/* --- CONTENT SECTION --- */}
       {!classSessions || classSessions.length === 0 ? (
-        // --- EMPTY STATE ---
         <Animated.View style={{ opacity: fadeAnim, flex: 1 }}>
-          {/* Note: FlatList is used here to allow Pull-to-Refresh even on empty state */}
           <FlatList 
             data={[]}
             renderItem={null}
-            contentContainerStyle={{ flex: 1 }}
+            // FIX: Added justifyContent and alignItems to center the content vertically
+            contentContainerStyle={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
             refreshControl={
               <RefreshControl
                 refreshing={isRefetching}
@@ -175,19 +156,17 @@ export default function Index() {
               />
             }
             ListHeaderComponent={
-               // Show Spinner here if refreshing on empty state
                isRefetching ? (
                   <View className="py-10 items-center justify-center">
                     <Spinner />
                   </View>
                ) : (
-                 <EmptyState onRefresh={refetch} />
+                 <EmptyState onPress={refetch} buttonText="Refresh Schedule" />
                )
             }
           />
         </Animated.View>
       ) : (
-        // --- LIST STATE ---
         <FlatList
           data={classSessions}
           showsVerticalScrollIndicator={false}
@@ -196,12 +175,10 @@ export default function Index() {
             paddingTop: 28,
             paddingBottom: 120,
           }}
-          // 1. CUSTOM REFRESH CONTROL CONFIGURATION
           refreshControl={
             <RefreshControl
               refreshing={isRefetching}
               onRefresh={refetch}
-              // Hide default native spinner
               tintColor="transparent" 
               colors={['transparent']} 
               style={{ backgroundColor: 'transparent' }}
@@ -209,17 +186,13 @@ export default function Index() {
           }
           keyExtractor={(item, index) => `${item.id}-${index}`}
           
-          // 2. MODIFIED HEADER TO INCLUDE SPINNER
           ListHeaderComponent={
             <View>
-              {/* Show Custom Spinner when pulling down */}
               {isRefetching && (
                 <View className="py-6 items-center justify-center w-full mb-2">
                   <Spinner />
                 </View>
               )}
-
-              {/* Existing Timeline Header */}
               <Animated.View
                 style={{ opacity: fadeAnim }}
                 className="mb-6 flex-row items-center"
@@ -238,7 +211,6 @@ export default function Index() {
             </View>
           }
 
-          // List Items
           renderItem={({ item }) => (
             <Animated.View
               style={{
@@ -264,7 +236,6 @@ export default function Index() {
             </Animated.View>
           )}
           
-          // List Footer (Summary)
           ListFooterComponent={
             sessionCount > 0 ? (
               <Animated.View

@@ -1,11 +1,16 @@
 import PrimaryButton from "@/components/Button";
+import EmptyState from "@/components/EmptyState"; // <--- IMPORT ADDED
 import ErrorMsg from "@/components/ErrorMsg";
 import Spinner from "@/components/Spinner";
 import { useDebounce } from "@/hooks/useDebounce";
-import { deleteStudent, fetchStudentsFromSupabase, updateStudent } from "@/services/StudentService";
+import {
+  deleteStudent,
+  fetchStudentsFromSupabase,
+  updateStudent,
+} from "@/services/StudentService";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from "expo-linear-gradient";
 import { Link } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
@@ -26,19 +31,25 @@ import TextInputField from "../../components/TextInputField";
 import "../../global.css";
 
 // Define the precise type expected for local data and mutations
-type AmountRangeType = { label: string, min: number, max: number };
+type AmountRangeType = { label: string; min: number; max: number };
 
-type StudentDataType = { 
-  id: string; 
-  name: string; 
-  time: string; // e.g., "Today, 10:10 AM"
+type StudentDataType = {
+  id: string;
+  name: string;
+  time: string;
+  startTime: string;
+  endTime: string;
   image: string;
-  hourlyRate: number; // Must be defined for filtering
-  daysOfWeek: string[]; // Must be defined for filtering
+  hourlyRate: number;
+  daysOfWeek: string[];
 };
 
 const DAYS = ["Mon", "Tues", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const TIME_SLOTS = ["Morning (6AM-12PM)", "Afternoon (12PM-6PM)", "Evening (6PM-12AM)"];
+const TIME_SLOTS = [
+  "Morning (6AM-12PM)",
+  "Afternoon (12PM-6PM)",
+  "Evening (6PM-12AM)",
+];
 const AMOUNT_RANGES: AmountRangeType[] = [
   { label: "All", min: 0, max: Infinity },
   { label: "Under $50", min: 0, max: 49.99 },
@@ -55,12 +66,11 @@ const getHour24 = (timeString: string): number | null => {
   let hour = parseInt(match[1]);
   const period = match[2].toUpperCase();
 
-  if (period === 'PM' && hour !== 12) hour += 12;
-  if (period === 'AM' && hour === 12) hour = 0;
-  
+  if (period === "PM" && hour !== 12) hour += 12;
+  if (period === "AM" && hour === 12) hour = 0;
+
   return hour;
 };
-
 
 export default function Students() {
   const [isModalVisible, setModalVisible] = useState(false);
@@ -68,28 +78,32 @@ export default function Students() {
   const [isDeleteModalVisible, setDeleteModalVisible] = useState(false);
   const [isFilterModalVisible, setFilterModalVisible] = useState(false);
 
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   // Filter states
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>("");
-  const [selectedAmountRange, setSelectedAmountRange] = useState<AmountRangeType>(AMOUNT_RANGES[0]);
+  const [selectedAmountRange, setSelectedAmountRange] =
+    useState<AmountRangeType>(AMOUNT_RANGES[0]);
 
-  const [editingStudent, setEditingStudent] = useState<StudentDataType | null>(null);
-  const [deletingStudent, setDeletingStudent] = useState<StudentDataType | null>(null);
+  const [editingStudent, setEditingStudent] = useState<StudentDataType | null>(
+    null
+  );
+  const [deletingStudent, setDeletingStudent] =
+    useState<StudentDataType | null>(null);
   const [editInputValue, setEditInputValue] = useState("");
 
   const queryClient = useQueryClient();
 
-  // Filter animation setup (unchanged)
+  // Filter animation setup
   const filterBadgeAnim = React.useRef(new Animated.Value(1)).current;
 
-  const activeFilterCount = 
-    selectedDays.length + 
-    (selectedTimeSlot ? 1 : 0) + 
+  const activeFilterCount =
+    selectedDays.length +
+    (selectedTimeSlot ? 1 : 0) +
     (selectedAmountRange.label !== "All" ? 1 : 0);
-    
+
   React.useEffect(() => {
     if (activeFilterCount > 0) {
       Animated.sequence([
@@ -107,93 +121,93 @@ export default function Students() {
     }
   }, [selectedDays, selectedTimeSlot, selectedAmountRange]);
 
-
   // --- READ QUERY ---
   const {
-    data: allStudents, 
+    data: allStudents,
     isLoading,
     isError,
     refetch,
     isRefetching,
     error,
   } = useQuery({
-    queryKey: ["students"], 
+    queryKey: ["students"],
     queryFn: fetchStudentsFromSupabase,
   });
 
-  // --- FILTERING LOGIC (FIXED) ---
+  // --- FILTERING LOGIC ---
   const students = useMemo(() => {
     if (!allStudents) return [];
-    
+
     let filtered = allStudents as StudentDataType[];
 
     // 1. Search filter
     if (debouncedSearchQuery) {
       const lowerCaseQuery = debouncedSearchQuery.toLowerCase();
-      filtered = filtered.filter(student =>
+      filtered = filtered.filter((student) =>
         student.name.toLowerCase().includes(lowerCaseQuery)
       );
     }
 
     // 2. Day filter
     if (selectedDays.length > 0) {
-      filtered = filtered.filter(student => 
+      filtered = filtered.filter((student) =>
         student.daysOfWeek?.some((day: string) => selectedDays.includes(day))
       );
     }
 
-    // 3. Time slot filter (FIXED)
+    // 3. Time slot filter
     if (selectedTimeSlot) {
-      filtered = filtered.filter(student => {
+      filtered = filtered.filter((student) => {
         const hour24 = getHour24(student.time);
         if (hour24 === null) return false;
-        
-        // 6AM (6) to 12PM (12)
+
         if (selectedTimeSlot.includes("Morning")) {
-          return hour24 >= 6 && hour24 <= 12; 
-        // 12PM (12) to 6PM (18)
+          return hour24 >= 6 && hour24 <= 12;
         } else if (selectedTimeSlot.includes("Afternoon")) {
-          // Check for 12 PM (noon) to 5:59 PM (17)
-          return hour24 > 12 && hour24 < 18; 
-        // 6PM (18) to 12AM (0)
+          return hour24 > 12 && hour24 < 18;
         } else if (selectedTimeSlot.includes("Evening")) {
-          // Check for 6 PM (18) onwards to 23 (11:59 PM) or 0 (midnight)
           return hour24 >= 18 || hour24 === 0;
         }
         return false;
       });
     }
 
-    // 4. Amount filter (FIXED)
+    // 4. Amount filter
     if (selectedAmountRange.label !== "All") {
-      filtered = filtered.filter(student => {
-        const rate = student.hourlyRate || 0; 
-        return rate >= selectedAmountRange.min && rate <= selectedAmountRange.max;
+      filtered = filtered.filter((student) => {
+        const rate = student.hourlyRate || 0;
+        return (
+          rate >= selectedAmountRange.min && rate <= selectedAmountRange.max
+        );
       });
     }
 
     return filtered;
-    
-  }, [allStudents, debouncedSearchQuery, selectedDays, selectedTimeSlot, selectedAmountRange]);
+  }, [
+    allStudents,
+    debouncedSearchQuery,
+    selectedDays,
+    selectedTimeSlot,
+    selectedAmountRange,
+  ]);
 
-
-  // --- MUTATIONS (unchanged) ---
+  // --- MUTATIONS ---
   const deleteMutation = useMutation({
     mutationFn: deleteStudent,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ["students"] });
       handleCloseDeleteModal();
     },
-    onError: (e) => alert("Failed to delete student: " + e.message)
+    onError: (e) => alert("Failed to delete student: " + e.message),
   });
 
   const editMutation = useMutation({
     mutationFn: updateStudent,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ["students"] });
       handleCloseEditModal();
     },
-    onError: (e) => alert("Failed to update student: " + e.message)
+    onError: (e) => alert("Failed to update student: " + e.message),
   });
 
   // --- HANDLERS ---
@@ -211,7 +225,10 @@ export default function Students() {
 
   const handleConfirmEdit = () => {
     if (editingStudent && editInputValue.trim() !== "") {
-      editMutation.mutate({ id: editingStudent.id, newName: editInputValue.trim() });
+      editMutation.mutate({
+        id: editingStudent.id,
+        newName: editInputValue.trim(),
+      });
     }
   };
 
@@ -230,8 +247,8 @@ export default function Students() {
   };
 
   const toggleDay = (day: string) => {
-    setSelectedDays(prev => 
-      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+    setSelectedDays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
     );
   };
 
@@ -239,10 +256,9 @@ export default function Students() {
     setSelectedDays([]);
     setSelectedTimeSlot("");
     setSelectedAmountRange(AMOUNT_RANGES[0]);
-    setSearchQuery(''); 
+    setSearchQuery("");
   };
 
-  // Styles
   const styles = StyleSheet.create({
     centeredView: {
       flex: 1,
@@ -276,47 +292,35 @@ export default function Students() {
       );
     }
 
-    // ListEmptyComponent implementation (Using inline logic based on previous structure)
-    if (students.length === 0) {
-        let title = "No Students Added Yet";
-        let description = "Tap below to add your first student to start tracking attendance.";
-        let iconName = "people-outline";
-        let buttonAction = () => setModalVisible(true);
-        let buttonText = "Add New Student";
-        
-        if (isSearchActive || activeFilterCount > 0) {
-            title = "No Matches Found";
-            description = isSearchActive ? `We couldn't find any student matching "${searchQuery}".` : "Try clearing your filters.";
-            iconName = "search-outline";
-            buttonAction = clearFilters;
-            buttonText = "Clear All Filters";
-        }
+    // --- PREPARE EMPTY STATE PROPS ---
+    let emptyTitle = "No Students Added Yet";
+    let emptyDescription =
+      "Tap below to add your first student to start tracking attendance.";
+    let emptyIcon = "people-outline";
+    let emptyButtonAction = () => setModalVisible(true);
+    let emptyButtonText = "Add New Student";
 
-        return (
-            <View className="flex-1 justify-center items-center mt-20">
-              {/* Note: I'm replacing EmptyState with inline components as its definition is missing */}
-              <View className="flex-1 justify-center items-center px-6 bg-gray-50">
-                  <Ionicons name={iconName as any} size={80} color="#9CA3AF" />
-                  <Text className="text-2xl font-bold text-gray-800 mt-6 text-center">{title}</Text>
-                  <Text className="text-base text-gray-600 text-center mt-3 leading-6">{description}</Text>
-                  <View className="mt-6 w-full max-w-xs">
-                     <PrimaryButton title={buttonText} onPress={buttonAction} />
-                  </View>
-              </View>
-            </View>
-        );
+    if (isSearchActive || activeFilterCount > 0) {
+      emptyTitle = "No Matches Found";
+      emptyDescription = isSearchActive
+        ? `We couldn't find any student matching "${searchQuery}".`
+        : "Try clearing your filters.";
+      emptyIcon = "search-outline";
+      emptyButtonAction = clearFilters;
+      emptyButtonText = "Clear All Filters";
     }
 
     return (
       <FlatList
+      className="mt-4"
         data={students}
         keyExtractor={(item) => item.id}
         refreshControl={
-          <RefreshControl 
-            refreshing={isRefetching} 
-            onRefresh={refetch} 
-            tintColor="#00C897" 
-            colors={["#00C897"]} 
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refetch}
+            tintColor="#00C897"
+            colors={["#00C897"]}
           />
         }
         renderItem={({ item }) => (
@@ -324,15 +328,38 @@ export default function Students() {
             <TouchableOpacity>
               <StudentItem
                 name={item.name}
-                time={item.time}
+                startTime={item.startTime}
+                endTime={item.endTime}
                 image={item.image}
-                onEdit={(e: any) => { e.stopPropagation(); handleEditStudent(item); }}
-                onDelete={(e: any) => { e.stopPropagation(); handleDeleteStudent(item); }}
+                onEdit={(e: any) => {
+                  e.stopPropagation();
+                  handleEditStudent(item);
+                }}
+                onDelete={(e: any) => {
+                  e.stopPropagation();
+                  handleDeleteStudent(item);
+                }}
               />
             </TouchableOpacity>
           </Link>
         )}
-        contentContainerStyle={{ paddingHorizontal: 4, paddingBottom: studentListHeight > 400 ? 100 : 250 }}
+        // FIX: Dynamically center content when list is empty
+        contentContainerStyle={{
+          paddingHorizontal: 4,
+          paddingBottom: studentListHeight > 400 ? 100 : 250,
+          ...(students.length === 0
+            ? { flex: 1, justifyContent: "center", alignItems: "center" }
+            : {}),
+        }}
+        ListEmptyComponent={
+          <EmptyState
+            title={emptyTitle}
+            description={emptyDescription}
+            iconName={emptyIcon as any}
+            buttonText={emptyButtonText}
+            onPress={emptyButtonAction}
+          />
+        }
       />
     );
   };
@@ -345,7 +372,7 @@ export default function Students() {
           <View className="flex-1">
             <SearchBar value={searchQuery} onChangeText={setSearchQuery} />
           </View>
-          
+
           {/* Filter Button */}
           <TouchableOpacity
             onPress={() => setFilterModalVisible(true)}
@@ -354,11 +381,13 @@ export default function Students() {
           >
             <Ionicons name="filter" size={24} color="white" />
             {activeFilterCount > 0 && (
-              <Animated.View 
+              <Animated.View
                 style={{ transform: [{ scale: filterBadgeAnim }] }}
                 className="absolute -top-1 -right-1 bg-red-500 rounded-full w-6 h-6 justify-center items-center"
               >
-                <Text className="text-white text-xs font-bold">{activeFilterCount}</Text>
+                <Text className="text-white text-xs font-bold">
+                  {activeFilterCount}
+                </Text>
               </Animated.View>
             )}
           </TouchableOpacity>
@@ -374,18 +403,20 @@ export default function Students() {
 
         <View className="flex items-center mt-4">
           <Text className="text-2xl font-semibold text-gray-800">
-            {isSearchActive || activeFilterCount > 0 ? "Filtered Results" : "Details of our "}
+            {isSearchActive || activeFilterCount > 0
+              ? "Filtered Results"
+              : "Details of our "}
             <Text className="text-primary">
-              {isSearchActive || activeFilterCount > 0 ? `(${students.length})` : "Students"}
+              {isSearchActive || activeFilterCount > 0
+                ? `(${students.length})`
+                : "Students"}
             </Text>
           </Text>
         </View>
       </View>
 
       {/* Content */}
-      <View className="flex-1">
-        {renderContent()}
-      </View>
+      <View className="flex-1">{renderContent()}</View>
 
       {/* --- FILTER MODAL --- */}
       <Modal
@@ -394,37 +425,54 @@ export default function Students() {
         visible={isFilterModalVisible}
         onRequestClose={() => setFilterModalVisible(false)}
       >
-        <View className="flex-1 justify-end" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <View className="bg-white rounded-t-3xl pb-8" style={{ maxHeight: '85%' }}>
+        <View
+          className="flex-1 justify-end"
+          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+        >
+          <View
+            className="bg-white rounded-t-3xl pb-8"
+            style={{ maxHeight: "85%" }}
+          >
             {/* Modal Header */}
             <View className="flex-row items-center justify-between px-6 py-5 border-b border-gray-200">
               <View className="flex-row items-center">
                 <Ionicons name="filter" size={24} color="#00C897" />
-                <Text className="text-2xl font-bold text-gray-900 ml-2">Filters</Text>
+                <Text className="text-2xl font-bold text-gray-900 ml-2">
+                  Filters
+                </Text>
               </View>
               <TouchableOpacity onPress={() => setFilterModalVisible(false)}>
                 <Ionicons name="close" size={28} color="#64748B" />
               </TouchableOpacity>
             </View>
 
-            <ScrollView className="px-6 py-6" showsVerticalScrollIndicator={false}>
+            <ScrollView
+              className="px-6 py-6"
+              showsVerticalScrollIndicator={false}
+            >
               {/* Days of Week */}
               <View className="mb-8">
-                <Text className="text-lg font-bold text-gray-900 mb-4">Days of Week</Text>
+                <Text className="text-lg font-bold text-gray-900 mb-4">
+                  Days of Week
+                </Text>
                 <View className="flex-row flex-wrap gap-2">
-                  {DAYS.map(day => {
+                  {DAYS.map((day) => {
                     const isSelected = selectedDays.includes(day);
                     return (
                       <TouchableOpacity
                         key={day}
                         onPress={() => toggleDay(day)}
                         className={`px-4 py-2.5 rounded-full border-2 ${
-                          isSelected ? 'bg-emerald-50 border-emerald-500' : 'bg-white border-gray-300'
+                          isSelected
+                            ? "bg-emerald-50 border-emerald-500"
+                            : "bg-white border-gray-300"
                         }`}
                       >
-                        <Text className={`font-semibold ${
-                          isSelected ? 'text-emerald-700' : 'text-gray-600'
-                        }`}>
+                        <Text
+                          className={`font-semibold ${
+                            isSelected ? "text-emerald-700" : "text-gray-600"
+                          }`}
+                        >
                           {day.slice(0, 3)}
                         </Text>
                       </TouchableOpacity>
@@ -435,26 +483,34 @@ export default function Students() {
 
               {/* Time Slots */}
               <View className="mb-8">
-                <Text className="text-lg font-bold text-gray-900 mb-4">Time of Day</Text>
+                <Text className="text-lg font-bold text-gray-900 mb-4">
+                  Time of Day
+                </Text>
                 <View className="gap-3">
-                  {TIME_SLOTS.map(slot => {
+                  {TIME_SLOTS.map((slot) => {
                     const isSelected = selectedTimeSlot === slot;
                     return (
                       <TouchableOpacity
                         key={slot}
-                        onPress={() => setSelectedTimeSlot(isSelected ? "" : slot)}
+                        onPress={() =>
+                          setSelectedTimeSlot(isSelected ? "" : slot)
+                        }
                         className={`p-4 rounded-2xl border-2 flex-row items-center ${
-                          isSelected ? 'bg-indigo-50 border-indigo-500' : 'bg-white border-gray-300'
+                          isSelected
+                            ? "bg-indigo-50 border-indigo-500"
+                            : "bg-white border-gray-300"
                         }`}
                       >
-                        <Ionicons 
-                          name="time-outline" 
-                          size={20} 
-                          color={isSelected ? '#6366F1' : '#64748B'} 
+                        <Ionicons
+                          name="time-outline"
+                          size={20}
+                          color={isSelected ? "#6366F1" : "#64748B"}
                         />
-                        <Text className={`ml-3 font-semibold ${
-                          isSelected ? 'text-indigo-700' : 'text-gray-700'
-                        }`}>
+                        <Text
+                          className={`ml-3 font-semibold ${
+                            isSelected ? "text-indigo-700" : "text-gray-700"
+                          }`}
+                        >
                           {slot}
                         </Text>
                       </TouchableOpacity>
@@ -465,26 +521,33 @@ export default function Students() {
 
               {/* Amount Range */}
               <View className="mb-6">
-                <Text className="text-lg font-bold text-gray-900 mb-4">Class Amount (EGP)</Text>
+                <Text className="text-lg font-bold text-gray-900 mb-4">
+                  Class Amount (EGP)
+                </Text>
                 <View className="gap-3">
-                  {AMOUNT_RANGES.map(range => {
-                    const isSelected = selectedAmountRange.label === range.label;
+                  {AMOUNT_RANGES.map((range) => {
+                    const isSelected =
+                      selectedAmountRange.label === range.label;
                     return (
                       <TouchableOpacity
                         key={range.label}
                         onPress={() => setSelectedAmountRange(range)}
                         className={`p-4 rounded-2xl border-2 flex-row items-center ${
-                          isSelected ? 'bg-purple-50 border-purple-500' : 'bg-white border-gray-300'
+                          isSelected
+                            ? "bg-purple-50 border-purple-500"
+                            : "bg-white border-gray-300"
                         }`}
                       >
-                        <Ionicons 
-                          name="cash-outline" 
-                          size={20} 
-                          color={isSelected ? '#A855F7' : '#64748B'} 
+                        <Ionicons
+                          name="cash-outline"
+                          size={20}
+                          color={isSelected ? "#A855F7" : "#64748B"}
                         />
-                        <Text className={`ml-3 font-semibold ${
-                          isSelected ? 'text-purple-700' : 'text-gray-700'
-                        }`}>
+                        <Text
+                          className={`ml-3 font-semibold ${
+                            isSelected ? "text-purple-700" : "text-gray-700"
+                          }`}
+                        >
                           {range.label}
                         </Text>
                       </TouchableOpacity>
@@ -500,26 +563,30 @@ export default function Students() {
                 onPress={clearFilters}
                 className="flex-1 py-4 rounded-2xl border-2 border-gray-300 items-center"
               >
-                <Text className="text-gray-700 font-bold text-base">Clear All</Text>
+                <Text className="text-gray-700 font-bold text-base">
+                  Clear All
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => setFilterModalVisible(false)}
                 className="flex-1 py-4 rounded-2xl items-center"
               >
                 <LinearGradient
-                  colors={['#00C897', '#00A67E']}
+                  colors={["#00C897", "#00A67E"]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   className="absolute inset-0 rounded-2xl"
                 />
-                <Text className="text-white font-bold text-base">Apply Filters</Text>
+                <Text className="text-white font-bold text-base">
+                  Apply Filters
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* --- OTHER MODALS (unchanged) --- */}
+      {/* --- OTHER MODALS --- */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -540,9 +607,12 @@ export default function Students() {
           activeOpacity={1}
           onPress={handleCloseEditModal}
         >
-          <View className="bg-white rounded-xl p-6 w-11/12" onStartShouldSetResponder={() => true}>
+          <View
+            className="bg-white rounded-xl p-6 w-11/12"
+            onStartShouldSetResponder={() => true}
+          >
             <TextInputField
-              label={`Editing: ${editingStudent?.name || ''}`}
+              label={`Editing: ${editingStudent?.name || ""}`}
               value={editInputValue}
               onChangeText={setEditInputValue}
               placeholder="Enter new name"
@@ -568,9 +638,16 @@ export default function Students() {
           activeOpacity={1}
           onPress={handleCloseDeleteModal}
         >
-          <View className="bg-white rounded-[30px] p-6 w-11/12 max-w-xs" onStartShouldSetResponder={() => true}>
+          <View
+            className="bg-white rounded-[30px] p-6 w-11/12 max-w-xs"
+            onStartShouldSetResponder={() => true}
+          >
             <Text className="text-[#5F5F5F] text-base font-medium text-center mb-6 mt-2">
-              Are you sure You wanna delete <Text className="font-bold text-black">{deletingStudent?.name}</Text>?
+              Are you sure You wanna delete{" "}
+              <Text className="font-bold text-black">
+                {deletingStudent?.name}
+              </Text>
+              ?
             </Text>
             <View className="flex-row justify-center gap-3 mb-2">
               <TouchableOpacity
