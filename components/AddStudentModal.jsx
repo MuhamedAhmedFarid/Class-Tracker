@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query"; // New import
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import React, { useState } from "react";
 import {
   Text,
@@ -6,38 +6,34 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
-import { createNewStudent } from "../services/StudentService"; // New import
+import { createNewStudent } from "../services/StudentService";
 import PrimaryButton from "./Button";
 import TextInputField from "./TextInputField";
 import TimePickerField from "./TimePickerField";
 
-// Mock data for days and times (you'd likely fetch this or manage it in state)
 const days = ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"];
 
-export const AddStudentModal = ({ onClose }) => { // Removed onApplyFilter prop
+export const AddStudentModal = ({ onClose }) => {
   const [studentName, setStudentName] = useState("");
-  const [selectedDays, setSelectedDays] = useState([]); // Array for multiple days
+  const [selectedDays, setSelectedDays] = useState([]);
   const [fromTime, setFromTime] = useState("6 : 10 PM"); 
   const [toTime, setToTime] = useState("6 : 10 PM"); 
   const [amount, setAmount] = useState("0.00");
   
   const queryClient = useQueryClient();
   
-  // Setup Mutation to Add a new student
   const addStudentMutation = useMutation({
     mutationFn: createNewStudent,
     onSuccess: () => {
-      // Invalidate the 'students' query to refresh the list on the Students tab
+      // This line ensures the list updates immediately after adding
       queryClient.invalidateQueries({ queryKey: ['students'] });
-      onClose(); // Close modal only on success
+      onClose();
     },
     onError: (error) => {
       console.error("Failed to add student:", error);
-      // Optionally show an alert to the user
       alert("Failed to add student. " + error.message);
     }
   });
-
 
   const toggleDay = (day) => {
     setSelectedDays((prev) => {
@@ -70,7 +66,6 @@ export const AddStudentModal = ({ onClose }) => { // Removed onApplyFilter prop
         onStartShouldSetResponder={() => true}
       >
 
-        {/* Name Input */}
         <View className="mb-1">
           <TextInputField
             label=""
@@ -81,7 +76,6 @@ export const AddStudentModal = ({ onClose }) => { // Removed onApplyFilter prop
           />
         </View>
 
-        {/* Day Selection */}
         <View className="mb-4">
           <View className="flex-row flex-wrap gap-2">
             {days.map((day) => (
@@ -106,7 +100,6 @@ export const AddStudentModal = ({ onClose }) => { // Removed onApplyFilter prop
           </View>
         </View>
 
-        {/* From-To Time Inputs */}
         <View className="flex-row justify-between mb-6 gap-4">
           <View className="flex-1">
             <TimePickerField
@@ -127,7 +120,6 @@ export const AddStudentModal = ({ onClose }) => { // Removed onApplyFilter prop
           </View>
         </View>
 
-        {/* Select Amount Input */}
         <View className="mb-8">
           <Text className="text-gray-600 text-sm mb-1">Select amount</Text>
           <View className="flex-row items-center border border-gray-300 rounded-lg p-3">

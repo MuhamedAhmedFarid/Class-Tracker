@@ -1,14 +1,29 @@
-import ErrorMsg from '@/components/ErrorMsg';
-import Spinner from '@/components/Spinner';
-import { Ionicons } from '@expo/vector-icons';
+import EmptyState from '@/components/EmptyState';
+import ErrorMsg from "@/components/ErrorMsg";
+import Spinner from "@/components/Spinner";
+import { fetchTodayStudentsScheduled } from "@/services/StudentService";
+import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
-import { FlatList, RefreshControl, Text, View } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { StatusBar } from "expo-status-bar";
+import React, { useEffect, useRef } from "react";
+import {
+  Animated,
+  FlatList,
+  RefreshControl,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import Student from "../../components/student";
 import "../../global.css";
-// IMPORT THE NEW SERVICE FUNCTION
-import { fetchTodaySessionsFromSupabase } from '@/services/StudentService';
 
 export default function Index() {
+  // Animation Values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+
+  // Data Fetching
   const {
     data: classSessions,
     isLoading,
@@ -17,84 +32,268 @@ export default function Index() {
     isRefetching,
     error,
   } = useQuery({
-    queryKey: ["classSessions"],
-    queryFn: fetchTodaySessionsFromSupabase,
+    queryKey: ["todayStudentsScheduled"],
+    queryFn: fetchTodayStudentsScheduled,
   });
 
-  // Format today's date more nicely
-  const formatDate = () => {
-    const options = { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' };
-    return new Date().toLocaleDateString('en-US', options);
-  };
+  // Run Animation on Mount
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
+  // Date Formatting
+  const date = new Date();
+  const dayName = date.toLocaleDateString("en-US", { weekday: "long" });
+  const fullDate = date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+  });
+
+  // Calculate Stats
+  const sessionCount = classSessions ? classSessions.length : 0;
+
+  // --- LOADING STATE (Initial Load Only) ---
   if (isLoading) {
-    return <Spinner />;
-  }
-
-  if (isError) {
-    return <ErrorMsg msg={error ? error.message : "Unable to load today's sessions. Please try again."}/>
-  }
-
-  if (!classSessions || classSessions.length === 0) {
     return (
-      <View className="flex-1 justify-center items-center px-6 bg-gray-50">
-        <Ionicons name="calendar-outline" size={80} color="#60A5FA" />
-        <Text className="text-2xl font-bold text-gray-800 mt-6">
-          No Sessions Today
-        </Text>
-        <Text className="text-base text-gray-600 text-center mt-3 leading-6">
-          You don't have any classes scheduled for today.
-        </Text>
+      <View className="flex-1 bg-gray-50 justify-center items-center">
+        <Spinner />
+      </View>
+    );
+  }
+
+  // --- ERROR STATE ---
+  if (isError) {
+    return (
+      <View className="flex-1 bg-gray-50 justify-center px-4">
+        <ErrorMsg
+          msg={error ? error.message : "Unable to load today's sessions."}
+        />
+        <TouchableOpacity
+          onPress={() => refetch()}
+          className="mt-6 bg-[#00C897] py-3 px-6 rounded-full self-center shadow-lg"
+        >
+          <Text className="text-white font-semibold">Try Again</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
   return (
     <View className="flex-1 bg-gray-50">
-      {/* Header Section */}
-      <View className="bg-white px-6 pt-16 pb-6 shadow-sm">
-        <Text className="text-sm font-medium text-gray-500 uppercase tracking-wide">
-          Today
-        </Text>
-        <Text className="text-3xl font-bold text-gray-900 mt-1">
-          {formatDate()}
-        </Text>
+      <StatusBar style="dark" />
+
+      {/* --- BACKGROUND DECORATIONS (Blobs) --- */}
+      <View className="absolute inset-0 overflow-hidden pointer-events-none">
+        <View
+          className="absolute -top-32 -right-32 w-64 h-64 bg-emerald-200 rounded-full opacity-20"
+          style={{ transform: [{ scale: 1.5 }] }}
+        />
+        <View
+          className="absolute -bottom-32 -left-32 w-64 h-64 bg-indigo-200 rounded-full opacity-20"
+          style={{ transform: [{ scale: 1.5 }] }}
+        />
       </View>
 
-      {/* Class Sessions List */}
-      <View className="flex-1 px-4 pt-4">
+      {/* --- ENHANCED HEADER SECTION --- */}
+      <Animated.View
+        style={{ opacity: fadeAnim, transform: [{ scale: scaleAnim }] }}
+        className="bg-white pt-16 pb-8 px-6 rounded-b-[32px] shadow-lg z-10 border-b border-gray-100"
+      >
+        <View className="flex-row justify-between items-start">
+          <View className="flex-1">
+            {/* Day Label with Icon */}
+            <View className="flex-row items-center mb-2">
+              <Ionicons name="sparkles" size={16} color="#00C897" />
+              <Text className="text-xs font-bold text-[#00C897] uppercase tracking-widest ml-2">
+                {dayName}
+              </Text>
+            </View>
+
+            {/* Date */}
+            <Text className="text-4xl font-black text-gray-900 mb-1">
+              {fullDate}
+            </Text>
+
+            {/* Subtitle */}
+            <Text className="text-sm text-gray-500 font-medium">
+              Your schedule for today
+            </Text>
+          </View>
+
+          {/* Enhanced Session Count Badge with Gradient */}
+          <View className="relative">
+            <LinearGradient
+              colors={["#00C897", "#00A67E"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              className="px-5 py-4 rounded-2xl items-center justify-center shadow-lg"
+            >
+              <Text className="text-white font-black text-3xl leading-tight">
+                {sessionCount}
+              </Text>
+              <Text className="text-white text-[9px] font-bold uppercase tracking-wider opacity-90">
+                Classes
+              </Text>
+            </LinearGradient>
+
+            {/* Glow Effect Behind Badge */}
+            <View
+              className="absolute inset-0 bg-[#00C897] rounded-2xl opacity-30 blur-xl"
+              style={{ transform: [{ scale: 1.1 }], zIndex: -1 }}
+            />
+          </View>
+        </View>
+      </Animated.View>
+
+      {/* --- CONTENT SECTION --- */}
+      {!classSessions || classSessions.length === 0 ? (
+        // --- EMPTY STATE ---
+        <Animated.View style={{ opacity: fadeAnim, flex: 1 }}>
+          {/* Note: FlatList is used here to allow Pull-to-Refresh even on empty state */}
+          <FlatList 
+            data={[]}
+            renderItem={null}
+            contentContainerStyle={{ flex: 1 }}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefetching}
+                onRefresh={refetch}
+                tintColor="transparent" 
+                colors={['transparent']} 
+              />
+            }
+            ListHeaderComponent={
+               // Show Spinner here if refreshing on empty state
+               isRefetching ? (
+                  <View className="py-10 items-center justify-center">
+                    <Spinner />
+                  </View>
+               ) : (
+                 <EmptyState onRefresh={refetch} />
+               )
+            }
+          />
+        </Animated.View>
+      ) : (
+        // --- LIST STATE ---
         <FlatList
           data={classSessions}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{
-            paddingBottom: 100,
+            paddingHorizontal: 20,
+            paddingTop: 28,
+            paddingBottom: 120,
           }}
+          // 1. CUSTOM REFRESH CONTROL CONFIGURATION
           refreshControl={
             <RefreshControl
               refreshing={isRefetching}
               onRefresh={refetch}
-              tintColor="#00C897"
+              // Hide default native spinner
+              tintColor="transparent" 
+              colors={['transparent']} 
+              style={{ backgroundColor: 'transparent' }}
             />
           }
-          keyExtractor={(item, index) => item.name + index}
-          renderItem={({ item }) => (
-            <View className="mb-3">
-              <Student
-                current={item.current}
-                // Removed .toLocaleString() as data is already formatted in the service layer
-                sDate={item.startDate}
-                eDate={item.endDate}
-                name={item.name}
-              />
-            </View>
-          )}
+          keyExtractor={(item, index) => `${item.id}-${index}`}
+          
+          // 2. MODIFIED HEADER TO INCLUDE SPINNER
           ListHeaderComponent={
-            <Text className="text-lg font-semibold text-gray-800 mb-4 px-2">
-              Class Sessions
-            </Text>
+            <View>
+              {/* Show Custom Spinner when pulling down */}
+              {isRefetching && (
+                <View className="py-6 items-center justify-center w-full mb-2">
+                  <Spinner />
+                </View>
+              )}
+
+              {/* Existing Timeline Header */}
+              <Animated.View
+                style={{ opacity: fadeAnim }}
+                className="mb-6 flex-row items-center"
+              >
+                <LinearGradient
+                  colors={["#00C897", "#6366F1"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0, y: 1 }}
+                  className="w-1 h-8 rounded-full mr-3"
+                />
+                <Text className="text-2xl font-black text-gray-900">
+                  Today's Timeline
+                </Text>
+                <View className="h-[1px] flex-1 bg-gray-300 ml-4" />
+              </Animated.View>
+            </View>
+          }
+
+          // List Items
+          renderItem={({ item }) => (
+            <Animated.View
+              style={{
+                opacity: fadeAnim,
+                transform: [
+                  {
+                    translateY: fadeAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [20, 0],
+                    }),
+                  },
+                ],
+              }}
+            >
+              <View className="mb-4">
+                <Student
+                  current={item.current}
+                  sDate={item.startDate}
+                  eDate={item.endDate}
+                  name={item.name}
+                />
+              </View>
+            </Animated.View>
+          )}
+          
+          // List Footer (Summary)
+          ListFooterComponent={
+            sessionCount > 0 ? (
+              <Animated.View
+                style={{ opacity: fadeAnim }}
+                className="mt-6 bg-emerald-50 rounded-2xl p-6 border border-emerald-100"
+              >
+                <View className="flex-row justify-between items-center">
+                  <View>
+                    <Text className="text-xs text-gray-600 mb-1 font-medium">
+                      Total Teaching Time
+                    </Text>
+                    <Text className="text-2xl font-black text-gray-900">
+                      {sessionCount} {sessionCount === 1 ? "hour" : "hours"}
+                    </Text>
+                  </View>
+                  <View className="items-end">
+                    <Text className="text-xs text-gray-600 mb-1 font-medium">
+                      Students
+                    </Text>
+                    <Text className="text-2xl font-black text-gray-900">
+                      {sessionCount}
+                    </Text>
+                  </View>
+                </View>
+              </Animated.View>
+            ) : null
           }
         />
-      </View>
+      )}
     </View>
   );
 }

@@ -1,7 +1,22 @@
 import { supabase } from '@/lib/supabase';
 
+// NEW: Static list of default profile picture URLs
+const DEFAULT_AVATAR_POOL = [
+  'https://randomuser.me/api/portraits/lego/1.jpg', // The "lego kind of picture"
+  'https://randomuser.me/api/portraits/men/32.jpg',
+  'https://randomuser.me/api/portraits/women/45.jpg',
+  'https://randomuser.me/api/portraits/men/76.jpg',
+  'https://randomuser.me/api/portraits/women/3.jpg',
+  'https://randomuser.me/api/portraits/men/1.jpg',
+  'https://randomuser.me/api/portraits/women/4.jpg',
+  'https://randomuser.me/api/portraits/women/11.jpg',
+  'https://randomuser.me/api/portraits/lego/5.jpg',
+  'https://randomuser.me/api/portraits/lego/7.jpg',
+];
+
 // Helper function to format the database TIME string into a display string (e.g., "09:30 AM")
 const formatTimeForDisplay = (timeString) => {
+  if (!timeString) return "N/A";
   try {
     const [hoursStr, minutesStr, period] = timeString.split(/[: ]+/).filter(Boolean);
     let hours = parseInt(hoursStr);
@@ -10,7 +25,6 @@ const formatTimeForDisplay = (timeString) => {
     if (period === "PM" && hours !== 12) hours += 12;
     if (period === "AM" && hours === 12) hours = 0;
     
-    // Setting date part to avoid timezone issues when converting military time
     const date = new Date();
     date.setHours(hours, minutes, 0, 0);
 
@@ -43,25 +57,25 @@ const formatSessionTime = (timestamp) => {
   }
 };
 
+const getTodayDayAbbreviation = () => {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    return days[new Date().getDay()];
+}
+
 /**
  * --- READ OPERATIONS ---
  */
 
 /**
- * Fetches all students data from Supabase, filtered by search query.
+ * Fetches all students data from Supabase for the Students list page.
  */
 export const fetchStudentsFromSupabase = async ({ queryKey }) => {
   const [key, searchQuery] = queryKey;
-  
+    
   let query = supabase
     .from('students')
-    .select('id, name, image_url, last_session_time')
+    .select('id, name, image_url, last_session_time, hourly_rate, days_of_week')
     .order('name', { ascending: true });
-
-  // NEW: Apply search filter using ilike
-  if (searchQuery) {
-    query = query.ilike('name', `%${searchQuery}%`);
-  }
 
   const { data, error } = await query;
 
@@ -70,63 +84,52 @@ export const fetchStudentsFromSupabase = async ({ queryKey }) => {
     throw new Error('Failed to load students.');
   }
   
-  return data.map(student => ({
+  // Map Supabase database fields to component props expected by StudentItem.jsx
+  return data.map((student, index) => ({
     id: student.id,
     name: student.name,
-    image: student.image_url || 'https://randomuser.me/api/portraits/lego/1.jpg',
+    // FIX: Cycle through default avatars if image_url is null
+    image: student.image_url || DEFAULT_AVATAR_POOL[index % DEFAULT_AVATAR_POOL.length],
     time: formatSessionTime(student.last_session_time),
-  }));
-};
-
-export const fetchTodaySessionsFromSupabase = async () => {
-  const today = new Date().toISOString().split('T')[0]; 
-  
-  const { data, error } = await supabase
-    .from('class_sessions')
-    .select(`
-      id,
-      start_time,
-      end_time,
-      is_current,
-      students (name)
-    `)
-    .eq('session_date', today)
-    .order('start_time', { ascending: true });
-
-  if (error) {
-    console.error("Error fetching today's sessions:", error);
-    throw new Error('Failed to load today\'s sessions.');
-  }
-  
-  return data.map(session => ({
-    name: session.students.name, 
-    startDate: formatTimeForDisplay(session.start_time),
-    endDate: formatTimeForDisplay(session.end_time),
-    current: session.is_current,
+    hourlyRate: student.hourly_rate,
+    daysOfWeek: student.days_of_week,
   }));
 };
 
 /**
- * --- WRITE OPERATIONS (unchanged) ---
+ * Fetches students scheduled for today's classes (for the Home/Index page).
+ */
+export const fetchTodayStudentsScheduled = async () => {
+    const todayAbbr = getTodayDayAbbreviation();
+    
+    const { data, error } = await supabase
+        .from('students')
+        .select(`id, name, days_of_week`)
+        .contains('days_of_week', [todayAbbr])
+        .order('name', { ascending: true });
+
+    if (error) {
+        console.error("Error fetching today's scheduled students:", error);
+        throw new Error(`Failed to load scheduled students for ${todayAbbr}.`);
+    }
+
+    return data.map(student => ({
+        name: student.name,
+        // Mock time fields as actual schedules are not granularly saved per day in the 'students' table
+        startDate: '10:00 AM', 
+        endDate: '12:00 PM',
+        current: false, 
+    }));
+};
+
+/**
+ * --- WRITE OPERATIONS ---
  */
 
 /**
  * Creates a new student entry in the database.
  */
 export const createNewStudent = async ({ studentName, selectedDays, amount, fromTime, toTime }) => {
-  const convertToMilitaryTime = (time12hr) => {
-    const [time, modifier] = time12hr.split(' ');
-    let [hours, minutes] = time.split(' : ');
-    
-    if (hours === '12') {
-      hours = '00';
-    }
-    if (modifier === 'PM') {
-      hours = parseInt(hours, 10) + 12;
-    }
-    return `${hours.toString().padStart(2, '0')}:${minutes}:00`;
-  };
-  
   const newStudentData = {
     name: studentName,
     hourly_rate: parseFloat(amount),
@@ -143,21 +146,6 @@ export const createNewStudent = async ({ studentName, selectedDays, amount, from
   if (studentError) {
     console.error('Error creating student:', studentError);
     throw new Error('Failed to create student: ' + studentError.message);
-  }
-  
-  const newSessionData = {
-    student_id: student.id,
-    session_date: new Date().toISOString().split('T')[0],
-    start_time: convertToMilitaryTime(fromTime),
-    end_time: convertToMilitaryTime(toTime),
-  };
-
-  const { error: sessionError } = await supabase
-    .from('class_sessions')
-    .insert([newSessionData]);
-
-  if (sessionError) {
-    console.warn('Warning: Could not create initial session for new student.', sessionError);
   }
 
   return student;
