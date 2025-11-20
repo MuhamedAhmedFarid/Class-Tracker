@@ -3,15 +3,15 @@ import { supabase } from '@/lib/supabase';
 // NEW: Static list of default profile picture URLs
 const DEFAULT_AVATAR_POOL = [
   'https://randomuser.me/api/portraits/lego/1.jpg', // The "lego kind of picture"
-  'https://randomuser.me/api/portraits/men/32.jpg',
-  'https://randomuser.me/api/portraits/women/45.jpg',
-  'https://randomuser.me/api/portraits/men/76.jpg',
-  'https://randomuser.me/api/portraits/women/3.jpg',
-  'https://randomuser.me/api/portraits/men/1.jpg',
-  'https://randomuser.me/api/portraits/women/4.jpg',
-  'https://randomuser.me/api/portraits/women/11.jpg',
+  'https://randomuser.me/api/portraits/lego/2.jpg',
+  'https://randomuser.me/api/portraits/lego/3.jpg',
+  'https://randomuser.me/api/portraits/lego/4.jpg',
   'https://randomuser.me/api/portraits/lego/5.jpg',
+  'https://randomuser.me/api/portraits/lego/6.jpg',
   'https://randomuser.me/api/portraits/lego/7.jpg',
+  'https://randomuser.me/api/portraits/lego/8.jpg',
+  'https://randomuser.me/api/portraits/lego/9.jpg',
+  'https://randomuser.me/api/portraits/lego/10.jpg',
 ];
 
 // Helper function to format the database TIME string into a display string (e.g., "09:30 AM")
