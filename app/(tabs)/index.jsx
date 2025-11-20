@@ -5,13 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import { FlatList, RefreshControl, Text, View } from "react-native";
 import Student from "../../components/student";
 import "../../global.css";
-
-// Mock data fetching function to simulate an API call
-const fetchClassSessions = async () => {
-  // Simulate network delay
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-  return [];
-};
+// IMPORT THE NEW SERVICE FUNCTION
+import { fetchTodaySessionsFromSupabase } from '@/services/StudentService';
 
 export default function Index() {
   const {
@@ -20,9 +15,10 @@ export default function Index() {
     isError,
     refetch,
     isRefetching,
+    error,
   } = useQuery({
     queryKey: ["classSessions"],
-    queryFn: fetchClassSessions,
+    queryFn: fetchTodaySessionsFromSupabase,
   });
 
   // Format today's date more nicely
@@ -36,7 +32,7 @@ export default function Index() {
   }
 
   if (isError) {
-    return <ErrorMsg msg="Unable to load class sessions. Please try again."/>
+    return <ErrorMsg msg={error ? error.message : "Unable to load today's sessions. Please try again."}/>
   }
 
   if (!classSessions || classSessions.length === 0) {
@@ -44,10 +40,10 @@ export default function Index() {
       <View className="flex-1 justify-center items-center px-6 bg-gray-50">
         <Ionicons name="calendar-outline" size={80} color="#60A5FA" />
         <Text className="text-2xl font-bold text-gray-800 mt-6">
-          No Sessions Yet
+          No Sessions Today
         </Text>
         <Text className="text-base text-gray-600 text-center mt-3 leading-6">
-          Get started by adding your first class session.
+          You don't have any classes scheduled for today.
         </Text>
       </View>
     );
@@ -80,13 +76,14 @@ export default function Index() {
               tintColor="#00C897"
             />
           }
-          keyExtractor={(item, index) => index.toString()}
+          keyExtractor={(item, index) => item.name + index}
           renderItem={({ item }) => (
             <View className="mb-3">
               <Student
                 current={item.current}
-                sDate={item.startDate.toLocaleString()}
-                eDate={item.endDate.toLocaleString()}
+                // Removed .toLocaleString() as data is already formatted in the service layer
+                sDate={item.startDate}
+                eDate={item.endDate}
                 name={item.name}
               />
             </View>

@@ -1,3 +1,4 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query"; // New import
 import React, { useState } from "react";
 import {
   Text,
@@ -5,6 +6,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import { createNewStudent } from "../services/StudentService"; // New import
 import PrimaryButton from "./Button";
 import TextInputField from "./TextInputField";
 import TimePickerField from "./TimePickerField";
@@ -12,12 +14,30 @@ import TimePickerField from "./TimePickerField";
 // Mock data for days and times (you'd likely fetch this or manage it in state)
 const days = ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"];
 
-export const AddStudentModal = ({ onClose, onApplyFilter }) => {
+export const AddStudentModal = ({ onClose }) => { // Removed onApplyFilter prop
   const [studentName, setStudentName] = useState("");
   const [selectedDays, setSelectedDays] = useState([]); // Array for multiple days
-  const [fromTime, setFromTime] = useState("6 : 10 PM"); // Example initial value
-  const [toTime, setToTime] = useState("6 : 10 PM"); // Example initial value
+  const [fromTime, setFromTime] = useState("6 : 10 PM"); 
+  const [toTime, setToTime] = useState("6 : 10 PM"); 
   const [amount, setAmount] = useState("0.00");
+  
+  const queryClient = useQueryClient();
+  
+  // Setup Mutation to Add a new student
+  const addStudentMutation = useMutation({
+    mutationFn: createNewStudent,
+    onSuccess: () => {
+      // Invalidate the 'students' query to refresh the list on the Students tab
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      onClose(); // Close modal only on success
+    },
+    onError: (error) => {
+      console.error("Failed to add student:", error);
+      // Optionally show an alert to the user
+      alert("Failed to add student. " + error.message);
+    }
+  });
+
 
   const toggleDay = (day) => {
     setSelectedDays((prev) => {
@@ -30,14 +50,13 @@ export const AddStudentModal = ({ onClose, onApplyFilter }) => {
   };
 
   const handleApply = () => {
-    onApplyFilter({ 
+    addStudentMutation.mutate({ 
       studentName,
       selectedDays, 
       fromTime, 
       toTime, 
       amount 
     });
-    onClose();
   };
 
   return (
@@ -122,7 +141,11 @@ export const AddStudentModal = ({ onClose, onApplyFilter }) => {
             <Text className="text-gray-500 text-base ml-2">EGP</Text>
           </View>
         </View>
-        <PrimaryButton title="Add Student" onPress={handleApply} />
+        <PrimaryButton 
+          title={addStudentMutation.isPending ? "Adding..." : "Add Student"} 
+          onPress={handleApply}
+          disabled={addStudentMutation.isPending} 
+        />
       </View>
     </TouchableOpacity>
   );

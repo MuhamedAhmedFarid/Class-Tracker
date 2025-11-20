@@ -14,8 +14,8 @@ const CallItem = ({ name, time, image, onEdit, onDelete }) => {
         <View>
           <Text className="text-black font-bold text-lg">{name}</Text>
           <View className="flex-row items-center">
-            <MaterialIcons name="call-made" size={14} color="#00C897" />
-            <Text className="text-gray-500 text-sm ml-1">{time}</Text>
+            {/* REMOVED: MaterialIcons call-made arrow icon */}
+            <Text className="text-gray-500 text-sm">{time}</Text>
           </View>
         </View>
       </View>

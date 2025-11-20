@@ -1,8 +1,9 @@
 import { Text, TouchableOpacity } from 'react-native';
 
-const PrimaryButton = ({ title, onPress, className = "" }) => {
+const PrimaryButton = ({ title, onPress, className = "", disabled = false }) => {
   return (
     <TouchableOpacity 
+    disabled={disabled}
       onPress={onPress} 
       // Using a custom color directly in NativeWind square brackets
       // 'py-4' for vertical padding, 'rounded-xl' for rounded corners

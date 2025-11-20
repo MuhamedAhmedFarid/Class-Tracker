@@ -2,7 +2,7 @@ import PrimaryButton from "@/components/Button";
 import ErrorMsg from "@/components/ErrorMsg";
 import Spinner from "@/components/Spinner";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "expo-router";
 import { useState } from "react";
 import {
@@ -18,87 +18,102 @@ import SearchBar from "../../components/SearchBar";
 import StudentItem from "../../components/StudentItem";
 import TextInputField from "../../components/TextInputField";
 import "../../global.css";
+import { fetchStudentsFromSupabase, updateStudent, deleteStudent } from "@/services/StudentService"; 
 
-// Mock data fetching function to simulate an API call
-const fetchStudents = async () => {
-  // Simulate network delay
-  await new Promise((resolve) => setTimeout(resolve, 800));
-
-  return [
-    {
-      id: "1",
-      name: "Team Align",
-      time: "Today, 09:30 AM",
-      image: "https://randomuser.me/api/portraits/men/32.jpg",
-    },
-    {
-      id: "2",
-      name: "Sarah Johnson",
-      time: "Yesterday, 05:20 PM",
-      image: "https://randomuser.me/api/portraits/women/45.jpg",
-    },
-    {
-      id: "3",
-      name: "Ali Hassan",
-      time: "Monday, 10:10 AM",
-      image: "https://randomuser.me/api/portraits/men/76.jpg",
-    },
-  ];
-};
+type StudentDataType = { id: string, name: string, time: string, image: string };
 
 export default function Students() {
   const [isModalVisible, setModalVisible] = useState(false);
   const [isEditModalVisible, setEditModalVisible] = useState(false);
   const [isDeleteModalVisible, setDeleteModalVisible] = useState(false);
-  const [editInputValue, setEditInputValue] = useState("");
-  const [studentToDelete, setStudentToDelete] = useState<string | null>(null);
+  
+  // NEW STATE: Search input
+  const [searchQuery, setSearchQuery] = useState(''); 
+  
+  const [editingStudent, setEditingStudent] = useState<StudentDataType | null>(null);
+  const [deletingStudent, setDeletingStudent] = useState<StudentDataType | null>(null);
 
-  // Integrate useQuery to fetch students list
+  const [editInputValue, setEditInputValue] = useState("");
+  
+  const queryClient = useQueryClient();
+
+  // --- READ QUERY (Updated to depend on searchQuery) ---
   const {
     data: students,
     isLoading,
     isError,
     refetch,
+    error,
   } = useQuery({
-    queryKey: ["students"],
-    queryFn: fetchStudents,
+    // QueryKey includes searchQuery: This automatically refetches data when the query changes.
+    queryKey: ["students", searchQuery], 
+    queryFn: fetchStudentsFromSupabase,
   });
 
-  const handleAddStudent = (filters: any) => {
-    console.log("Applied Filters:", filters);
-    // In a real app, you would perform a mutation here:
-    // mutation.mutate(filters, { onSuccess: () => refetch() });
-    refetch(); // For mock, simply refetch to show how it would work
-  };
+  // --- MUTATIONS ---
+  const deleteMutation = useMutation({
+    mutationFn: deleteStudent,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      handleCloseDeleteModal();
+    },
+    onError: (e) => {
+      alert("Failed to delete student: " + e.message);
+    }
+  });
 
-  const handleEditStudent = (studentName: string) => {
-    setEditInputValue(studentName);
+  const editMutation = useMutation({
+    mutationFn: updateStudent,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      handleCloseEditModal();
+    },
+    onError: (e) => {
+      alert("Failed to update student: " + e.message);
+    }
+  });
+  
+  const handleAddStudent = () => {}; 
+  
+  // --- HANDLERS ---
+  
+  const handleEditStudent = (student: StudentDataType) => {
+    setEditingStudent(student);
+    setEditInputValue(student.name);
     setEditModalVisible(true);
   };
-
+  
   const handleCloseEditModal = () => {
     setEditModalVisible(false);
+    setEditingStudent(null);
     setEditInputValue("");
   };
 
-  const handleDeleteStudent = (studentName: string) => {
-    setStudentToDelete(studentName);
+  const handleConfirmEdit = () => {
+    if (editingStudent && editInputValue.trim() !== "") {
+      editMutation.mutate({ 
+        id: editingStudent.id, 
+        newName: editInputValue.trim() 
+      });
+    }
+  };
+
+  const handleDeleteStudent = (student: StudentDataType) => {
+    setDeletingStudent(student);
     setDeleteModalVisible(true);
   };
 
   const handleCloseDeleteModal = () => {
     setDeleteModalVisible(false);
-    setStudentToDelete(null);
+    setDeletingStudent(null);
   };
 
   const handleConfirmDelete = () => {
-    if (studentToDelete) {
-      console.log("Deleted", studentToDelete);
-      // In a real app, perform delete mutation:
-      // deleteMutation.mutate(studentToDelete, { onSuccess: () => refetch() });
-      handleCloseDeleteModal();
+    if (deletingStudent) {
+      deleteMutation.mutate(deletingStudent.id);
     }
   };
+
 
   // Styles for modals (unchanged)
   const styles = StyleSheet.create({
@@ -123,23 +138,40 @@ export default function Students() {
     },
   });
 
-  // Handle Loading and Error States
+  // Handle Loading and Error States with new components
   if (isLoading) {
     return <Spinner />;
   }
 
   if (isError || !students) {
-    return <ErrorMsg msg="Unable to load class sessions. Please try again." />;
+    return (
+      <View className="flex-1 bg-white">
+        <ErrorMsg msg={error ? error.message : "Unable to load students. Please try again."} />
+        <View className="absolute bottom-40 w-full px-6">
+            <PrimaryButton title="Retry Fetch" onPress={() => refetch()} />
+        </View>
+      </View>
+    );
   }
-
+  
+  const studentListHeight = students.length * 80; 
+  const isSearchActive = searchQuery.length > 0;
+  
   return (
     <View className="flex-1 bg-white">
       {/* Header and Search Area */}
       <View className="pt-24 px-4 bg-white z-10 ">
-        <SearchBar />
+        {/* Bind SearchBar to local state */}
+        <SearchBar 
+          value={searchQuery} 
+          onChangeText={setSearchQuery} 
+        />
         <View className="flex items-center mt-4 mb-6">
           <Text className="text-2xl font-semibold text-gray-800">
-            Details of our <Text className="text-primary">Students</Text>
+            {isSearchActive ? "Search Results" : "Details of our "} 
+            <Text className="text-primary">
+                {isSearchActive ? `(${students.length})` : "Students"}
+            </Text>
           </Text>
         </View>
       </View>
@@ -156,21 +188,29 @@ export default function Students() {
                   name={item.name}
                   time={item.time}
                   image={item.image}
-                  // Stop propagation to prevent navigation when clicking the action icons
                   onEdit={(e: any) => {
                     e.stopPropagation();
-                    handleEditStudent(item.name);
+                    handleEditStudent(item);
                   }}
                   onDelete={(e: any) => {
                     e.stopPropagation();
-                    handleDeleteStudent(item.name);
+                    handleDeleteStudent(item);
                   }}
                 />
               </TouchableOpacity>
             </Link>
           )}
-          // Adding padding to the list itself
-          contentContainerStyle={{ paddingHorizontal: 4, paddingBottom: 100 }}
+          contentContainerStyle={{ paddingHorizontal: 4, paddingBottom: studentListHeight > 400 ? 100 : 250 }}
+          ListEmptyComponent={
+            <View className="flex-1 justify-center items-center h-48">
+              <Text className="text-lg text-gray-500">
+                {isSearchActive ? "No students match your search." : "No students added yet."}
+              </Text>
+              {isSearchActive && (
+                <PrimaryButton title="Clear Search" onPress={() => setSearchQuery('')} className="mt-4"/>
+              )}
+            </View>
+          }
         />
 
         {/* Floating Add Button */}
@@ -182,7 +222,7 @@ export default function Students() {
         </TouchableOpacity>
       </View>
 
-      {/* Modals (omitted for brevity, they are placed at the end of the file in the full context) */}
+      {/* Modals (unchanged logic) */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -193,7 +233,6 @@ export default function Students() {
       >
         <AddStudentModal
           onClose={() => setModalVisible(false)}
-          onApplyFilter={handleAddStudent}
         />
       </Modal>
 
@@ -213,17 +252,16 @@ export default function Students() {
             onStartShouldSetResponder={() => true}
           >
             <TextInputField
-              label="Edit Name"
+              label={`Editing: ${editingStudent?.name || ''}`}
               value={editInputValue}
               onChangeText={setEditInputValue}
               placeholder="Enter new name"
               autoFocus={true}
             />
             <PrimaryButton
-              title="Edit"
-              onPress={() => {
-                /* Edit logic */
-              }}
+              title={editMutation.isPending ? "Saving..." : "Save Edit"}
+              onPress={handleConfirmEdit}
+              disabled={editMutation.isPending}
             />
           </View>
         </TouchableOpacity>
@@ -245,15 +283,22 @@ export default function Students() {
             onStartShouldSetResponder={() => true}
           >
             <Text className="text-[#5F5F5F] text-base font-medium text-center mb-6 mt-2">
-              Are you sure You wanna delete this
+              Are you sure You wanna delete {" "}
+              <Text className="font-bold text-black">
+                {deletingStudent?.name}
+              </Text>
+              ?
             </Text>
 
             <View className="flex-row justify-center gap-3 mb-2">
               <TouchableOpacity
                 onPress={handleConfirmDelete}
                 className="flex-1 border-2 border-red-500 rounded-[30px] py-2.5 items-center"
+                disabled={deleteMutation.isPending}
               >
-                <Text className="text-red-500 text-sm font-semibold">YES</Text>
+                <Text className="text-red-500 text-sm font-semibold">
+                  {deleteMutation.isPending ? "DELETING..." : "YES"}
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity

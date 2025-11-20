@@ -1,14 +1,15 @@
 import { Stack } from "expo-router";
 import "../global.css";
-// Import necessary modules
+// 1. Import necessary modules for React Query
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-// Create a client
+// 2. Create a QueryClient instance outside of the component
+// This client will hold the cache and configuration
 const queryClient = new QueryClient();
 
 export default function RootLayout() {
   return (
-    // Wrap the app with the QueryClientProvider
+    // 3. Wrap the entire application (the Stack Navigator) with the provider
     <QueryClientProvider client={queryClient}>
       <Stack>
         <Stack.Screen
