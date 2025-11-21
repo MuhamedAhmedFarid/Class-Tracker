@@ -13,7 +13,10 @@ const DEFAULT_AVATAR_POOL = [
   'https://randomuser.me/api/portraits/lego/9.jpg',
   'https://randomuser.me/api/portraits/lego/10.jpg',
   'https://randomuser.me/api/portraits/lego/11.jpg',
-  'https://randomuser.me/api/portraits/lego/12.jpg',
+  'https://randomuser.me/api/portraits/lego/13.jpg',
+  'https://randomuser.me/api/portraits/lego/14.jpg',
+  'https://randomuser.me/api/portraits/lego/15.jpg',
+  'https://randomuser.me/api/portraits/lego/16.jpg',
 ];
 
 const getTodayDayAbbreviation = () => {
