@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { supabase } from '../lib/supabase.js';
 
 // Default avatar list
 const DEFAULT_AVATAR_POOL = [
@@ -28,11 +28,10 @@ const getTodayDayAbbreviation = () => {
  * --- READ OPERATIONS ---
  */
 
-export const fetchStudentsFromSupabase = async ({ queryKey }) => {
-  // 1. Select the start_time and end_time columns
+export const fetchStudentsFromSupabase = async () => {
   let query = supabase
     .from('students')
-    .select('id, name, image_url, last_session_time, hourly_rate, days_of_week, start_time, end_time')
+    .select('id, name, image_url, hourly_rate, days_of_week, start_time, end_time, paid_amount, total_collected, outstanding_balance')
     .order('name', { ascending: true });
 
   const { data, error } = await query;
@@ -42,28 +41,43 @@ export const fetchStudentsFromSupabase = async ({ queryKey }) => {
     throw new Error('Failed to load students.');
   }
   
-  return data.map((student, index) => ({
+  return data.map((student) => ({
     id: student.id,
     name: student.name,
-    image: student.image_url || DEFAULT_AVATAR_POOL[index % DEFAULT_AVATAR_POOL.length],
-    // 2. Use the real data from the DB
-    startTime: student.start_time || "N/A", 
-    endTime: student.end_time || "N/A",
+    image: student.image_url || 'https://randomuser.me/api/portraits/lego/1.jpg',
+    startTime: student.start_time || "09:00 AM", 
+    endTime: student.end_time || "10:00 AM",
     hourlyRate: student.hourly_rate,
-    daysOfWeek: student.days_of_week,
-    // Keep this for compatibility if needed, or remove if unused
-    time: `${student.start_time || 'N/A'} - ${student.end_time || 'N/A'}`, 
+    daysOfWeek: student.days_of_week || [],
+    paidAmount: student.paid_amount || 0,
+    totalCollected: student.total_collected || 0,
+    outstandingBalance: student.outstanding_balance || 0,
+    time: `${student.start_time || ''} - ${student.end_time || ''}`, 
   }));
+};
+
+// Fetch a single student with all attendance columns
+export const fetchStudentById = async (id) => {
+    const { data, error } = await supabase
+      .from('students')
+      .select('*')
+      .eq('id', id)
+      .single();
+  
+    if (error) {
+      console.error('Error fetching student details:', error);
+      throw new Error('Failed to load student details.');
+    }
+    return data;
 };
 
 export const fetchTodayStudentsScheduled = async () => {
     const todayAbbr = getTodayDayAbbreviation();
     
-    // 3. Fetch real times for the Home Screen
     const { data, error } = await supabase
         .from('students')
         .select(`id, name, days_of_week, start_time, end_time`)
-        .contains('days_of_week', [todayAbbr])
+        .contains('days_of_week', [todayAbbr]) 
         .order('name', { ascending: true });
 
     if (error) {
@@ -72,8 +86,8 @@ export const fetchTodayStudentsScheduled = async () => {
     }
 
     return data.map(student => ({
+        id: student.id,
         name: student.name,
-        // 4. Map DB columns to the props expected by the Student component
         startDate: student.start_time || 'N/A', 
         endDate: student.end_time || 'N/A',
         current: false, 
@@ -88,25 +102,35 @@ export const createNewStudent = async ({ studentName, selectedDays, amount, from
   const newStudentData = {
     name: studentName,
     hourly_rate: parseFloat(amount) || 0,
-    days_of_week: selectedDays,
-    // 5. This is where we SAVE the data to Supabase
+    days_of_week: selectedDays, 
     start_time: fromTime, 
     end_time: toTime,     
-    last_session_time: new Date().toISOString(), 
+    paid_amount: 0,
+    total_collected: 0,
+    outstanding_balance: 0,
+    image_url: `https://randomuser.me/api/portraits/lego/${Math.floor(Math.random() * 9)}.jpg`,
+    // Initialize attendance flags to false
+    monday_attended: false,
+    tuesday_attended: false,
+    wednesday_attended: false,
+    thursday_attended: false,
+    friday_attended: false,
+    saturday_attended: false,
+    sunday_attended: false
   };
   
-  const { data: student, error: studentError } = await supabase
+  const { data, error } = await supabase
     .from('students')
     .insert([newStudentData])
-    .select('id')
+    .select()
     .single();
 
-  if (studentError) {
-    console.error('Error creating student:', studentError);
-    throw new Error(studentError.message);
+  if (error) {
+    console.error('Error creating student:', error);
+    throw new Error(error.message);
   }
 
-  return student;
+  return data;
 };
 
 export const updateStudent = async ({ id, newName }) => {
@@ -119,4 +143,53 @@ export const deleteStudent = async (id) => {
   const { error } = await supabase.from('students').delete().eq('id', id);
   if (error) throw new Error(error.message);
   return true;
+};
+
+export const recordPayment = async (studentId, amount) => {
+    const { data: student, error: fetchError } = await supabase
+        .from('students')
+        .select('paid_amount, total_collected, outstanding_balance, name')
+        .eq('id', studentId)
+        .single();
+    
+    if (fetchError) throw new Error(fetchError.message);
+
+    const newPaidAmount = (student.paid_amount || 0) + amount;
+    const newOutstanding = (student.outstanding_balance || 0) - amount;
+    const newTotalCollected = (student.total_collected || 0) + amount;
+
+    const { error: updateError } = await supabase
+        .from('students')
+        .update({ 
+            paid_amount: newPaidAmount,
+            outstanding_balance: newOutstanding,
+            total_collected: newTotalCollected
+        })
+        .eq('id', studentId);
+
+    if (updateError) throw new Error(updateError.message);
+
+    const { error: recordError } = await supabase
+        .from('payment_records')
+        .insert([{
+            student_id: studentId,
+            amount: amount,
+            date: new Date().toISOString(),
+            student_name: student.name
+        }]);
+
+    if (recordError) throw new Error(recordError.message);
+
+    return true;
+};
+
+// Toggle attendance for a specific day
+export const toggleStudentAttendance = async (studentId, dayField, currentValue) => {
+    const { error } = await supabase
+        .from('students')
+        .update({ [dayField]: currentValue }) // Directly set true/false instead of toggle
+        .eq('id', studentId);
+
+    if (error) throw new Error(error.message);
+    return true;
 };

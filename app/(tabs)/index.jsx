@@ -1,12 +1,9 @@
-import EmptyState from '@/components/EmptyState';
-import ErrorMsg from "@/components/ErrorMsg";
-import Spinner from "@/components/Spinner";
-import { fetchTodayStudentsScheduled } from "@/services/StudentService";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
+import { useFocusEffect } from "expo-router"; // Import useFocusEffect
 import { StatusBar } from "expo-status-bar";
-import React, { useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import {
   Animated,
   FlatList,
@@ -15,8 +12,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import EmptyState from '../../components/EmptyState';
+import ErrorMsg from "../../components/ErrorMsg";
+import Spinner from "../../components/Spinner";
 import Student from "../../components/student";
 import "../../global.css";
+import { fetchTodayStudentsScheduled } from "../../services/StudentService";
 
 export default function Index() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -33,6 +34,13 @@ export default function Index() {
     queryKey: ["todayStudentsScheduled"],
     queryFn: fetchTodayStudentsScheduled,
   });
+
+  // Smooth Synchronization: Refetch whenever the screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [])
+  );
 
   useEffect(() => {
     Animated.parallel([
@@ -59,7 +67,7 @@ export default function Index() {
 
   const sessionCount = classSessions ? classSessions.length : 0;
 
-  if (isLoading) {
+  if (isLoading && !isRefetching && !classSessions) {
     return (
       <View className="flex-1 bg-gray-50 justify-center items-center">
         <Spinner />
@@ -145,7 +153,6 @@ export default function Index() {
           <FlatList 
             data={[]}
             renderItem={null}
-            // FIX: Added justifyContent and alignItems to center the content vertically
             contentContainerStyle={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
             refreshControl={
               <RefreshControl
