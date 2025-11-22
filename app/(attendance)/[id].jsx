@@ -1,12 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
+import React, { useMemo } from "react";
 import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Spinner from "../../components/Spinner";
-import { fetchStudentById, toggleStudentAttendance } from "../../services/StudentService";
+import Spinner from "../../components/Spinner.jsx";
+import { fetchStudentById, toggleStudentAttendance } from "../../services/StudentService.js";
 
-// Map short day codes to full DB column names
 const DAY_MAP = {
   'Sat': { label: 'Saturday', key: 'saturday_attended' },
   'Sun': { label: 'Sunday', key: 'sunday_attended' },
@@ -17,16 +17,28 @@ const DAY_MAP = {
   'Fri': { label: 'Friday', key: 'friday_attended' },
 };
 
-// Helper to calculate the actual date for the current week's days
-const getDateForDay = (dayName) => {
-  const targetDayIndex = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(dayName);
-  const today = new Date();
-  const currentDayIndex = today.getDay();
+// Fix Date Logic: Calculate dates based on a Saturday-start week
+// If today is Sat 22, then Sat=22, Sun=23, Mon=24...
+const getDateForDay = (dayCode) => {
+  const order = { 'Sat': 0, 'Sun': 1, 'Mon': 2, 'Tue': 3, 'Wed': 4, 'Thu': 5, 'Fri': 6 };
   
-  const diff = targetDayIndex - currentDayIndex;
+  const today = new Date();
+  const currentDayJS = today.getDay(); // Sun=0, Sat=6
+  
+  // Convert standard JS index to our "Saturday = 0" index
+  const currentDayIndex = (currentDayJS + 1) % 7; // Sat(6)->0, Sun(0)->1
+  
+  const targetIndex = order[dayCode];
+  
+  // Calculate difference: target - current
+  // Example: Today Sat(0), Target Sun(1). Diff = 1. Date = Today + 1
+  // Example: Today Sun(1), Target Sat(0). Diff = -1. Date = Today - 1 (Shows date within current week cycle starting previous Sat)
+  const diff = targetIndex - currentDayIndex;
+  
   const targetDate = new Date(today);
   targetDate.setDate(today.getDate() + diff);
   
+  // Format as DD/MM
   return `${targetDate.getDate()}/${targetDate.getMonth() + 1}`;
 };
 
@@ -40,11 +52,37 @@ const StudentAttendance = () => {
   });
 
   const toggleMutation = useMutation({
-    mutationFn: ({ dayKey, currentVal }) => toggleStudentAttendance(id, dayKey, currentVal),
+    mutationFn: ({ dayKey, status }) => toggleStudentAttendance(id, dayKey, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["student", id] });
+      queryClient.invalidateQueries({ queryKey: ["students"] }); // Sync with main list
     },
   });
+
+  // Dynamically calculate financial stats on the client
+  const stats = useMemo(() => {
+    if (!student) return { outstanding: 0, collected: 0 };
+    
+    // Count how many days are marked 'true' (Attended)
+    let attendedCount = 0;
+    const weekDays = ['saturday_attended', 'sunday_attended', 'monday_attended', 'tuesday_attended', 'wednesday_attended', 'thursday_attended', 'friday_attended'];
+    
+    weekDays.forEach(key => {
+        if (student[key]) attendedCount++;
+    });
+    
+    const hourlyRate = student.hourly_rate || 0;
+    const totalCost = attendedCount * hourlyRate;
+    const paidAmount = student.paid_amount || 0;
+    
+    // Outstanding = Cost of classes attended - Amount Paid
+    const outstanding = Math.max(0, totalCost - paidAmount);
+    
+    return {
+      outstanding: outstanding.toFixed(2),
+      collected: paidAmount.toFixed(2)
+    };
+  }, [student]);
 
   if (isLoading) {
     return <SafeAreaView className="flex-1 items-center justify-center"><Spinner /></SafeAreaView>;
@@ -58,12 +96,12 @@ const StudentAttendance = () => {
     );
   }
 
-  // Filter and map sessions based on student's days_of_week
+  // Filter sessions based on student's days_of_week settings
   const sessions = (student.days_of_week || []).map(dayCode => {
     const dayInfo = DAY_MAP[dayCode];
     if (!dayInfo) return null;
 
-    const isAttended = student[dayInfo.key];
+    const isAttended = student[dayInfo.key]; // boolean
     const dateString = getDateForDay(dayCode);
 
     return {
@@ -75,9 +113,12 @@ const StudentAttendance = () => {
     };
   }).filter(Boolean);
 
+  // Sort sessions by the custom week order (Sat -> Fri)
+  const weekOrder = { 'Sat': 0, 'Sun': 1, 'Mon': 2, 'Tue': 3, 'Wed': 4, 'Thu': 5, 'Fri': 6 };
+  sessions.sort((a, b) => weekOrder[a.dayCode] - weekOrder[b.dayCode]);
+
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
-      {/* Header Section */}
       <View className="mt-6 px-5 mb-8">
         <Text className="text-gray-500 text-lg font-medium mb-1">Student Profile</Text>
         <Text className="text-3xl font-bold text-gray-900">{student.name}</Text>
@@ -85,37 +126,27 @@ const StudentAttendance = () => {
 
       {/* Stats Card */}
       <View className="px-5 mb-10">
-        <View className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 flex-row justify-between items-center">
+        <View className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex-row justify-between items-center">
           <View>
-            <Text className="text-gray-400 text-sm font-medium uppercase tracking-wider mb-1">
+            <Text className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">
               Outstanding
             </Text>
-            <Text className="text-red-500 text-2xl font-black">
-              ${student.outstanding_balance || 0}
+            <Text className="text-red-500 text-3xl font-black">
+              ${stats.outstanding}
             </Text>
           </View>
-          <View className="h-10 w-[1px] bg-gray-200" />
+          <View className="h-12 w-[1px] bg-gray-100" />
           <View>
-            <Text className="text-gray-400 text-sm font-medium uppercase tracking-wider mb-1">
+            <Text className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">
               Collected
             </Text>
-            <Text className="text-[#00C897] text-2xl font-black">
-              ${student.total_collected || 0}
+            <Text className="text-[#00C897] text-3xl font-black">
+              ${stats.collected}
             </Text>
           </View>
         </View>
       </View>
 
-      {/* Rating / Status (Visual Only as per request) */}
-      <View className="px-5 flex-row mb-8 gap-1">
-        {[1, 2, 3].map((_, i) => (
-          <Ionicons key={i} name="star" size={24} color="#FBBF24" />
-        ))}
-        <Ionicons name="star" size={24} color="#E5E7EB" />
-        <Ionicons name="star" size={24} color="#E5E7EB" />
-      </View>
-
-      {/* Weekly Attendance List */}
       <ScrollView className="flex-1 px-5" showsVerticalScrollIndicator={false}>
         <Text className="text-lg font-bold text-gray-800 mb-4">Weekly Attendance</Text>
         
@@ -123,41 +154,69 @@ const StudentAttendance = () => {
             <Text className="text-gray-400 text-center mt-4">No class days scheduled.</Text>
         ) : (
             sessions.map((session, index) => (
-            <TouchableOpacity
+            <View
                 key={index}
-                activeOpacity={0.9}
-                onPress={() => toggleMutation.mutate({ dayKey: session.dbKey, currentVal: session.isAttended })}
-                className="flex-row items-center justify-between bg-white rounded-2xl mb-4 shadow-sm border border-gray-100 overflow-hidden h-20"
+                className="bg-white rounded-2xl mb-4 shadow-sm border border-gray-100 overflow-hidden p-4"
             >
-                {/* Left Date Section */}
-                <View className="h-full w-24 bg-[#00C897] items-center justify-center">
-                <Text className="text-white font-bold text-lg">{session.date}</Text>
-                <Text className="text-white/80 text-xs font-medium uppercase">{session.dayCode}</Text>
+                {/* Top Row: Date & Status */}
+                <View className="flex-row justify-between items-center mb-4">
+                    <View className="flex-row items-center">
+                        <View className="bg-gray-50 px-3 py-1 rounded-lg mr-3 border border-gray-100">
+                             <Text className="text-gray-700 font-bold">{session.date}</Text>
+                        </View>
+                        <Text className="text-lg font-bold text-gray-800">{session.fullDay}</Text>
+                    </View>
+                    
+                    <View className={`px-3 py-1 rounded-full ${session.isAttended ? 'bg-green-100' : 'bg-red-100'}`}>
+                        <Text className={`text-xs font-bold ${session.isAttended ? 'text-green-700' : 'text-red-700'}`}>
+                            {session.isAttended ? 'Present' : 'Absent'}
+                        </Text>
+                    </View>
                 </View>
 
-                {/* Center Day Name */}
-                <View className="flex-1 pl-4">
-                <Text className="text-gray-800 text-lg font-bold">{session.fullDay}</Text>
-                <Text className={`text-xs font-medium ${session.isAttended ? 'text-green-600' : 'text-red-500'}`}>
-                    {session.isAttended ? 'Present' : 'Absent'}
-                </Text>
-                </View>
+                {/* Bottom Row: Action Buttons (Two Buttons as requested) */}
+                <View className="flex-row gap-3">
+                    {/* Absent Button */}
+                    <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => toggleMutation.mutate({ dayKey: session.dbKey, status: false })}
+                        className={`flex-1 py-3.5 rounded-xl flex-row justify-center items-center border ${
+                            !session.isAttended 
+                              ? 'bg-red-500 border-red-500 shadow-sm' 
+                              : 'bg-white border-gray-200'
+                        }`}
+                    >
+                         <Ionicons 
+                            name="close-circle" 
+                            size={20} 
+                            color={!session.isAttended ? "white" : "#9CA3AF"} 
+                         />
+                         <Text className={`ml-2 font-bold ${!session.isAttended ? 'text-white' : 'text-gray-500'}`}>
+                             Absent
+                         </Text>
+                    </TouchableOpacity>
 
-                {/* Right Status Indicator */}
-                <View className="pr-5">
-                <View
-                    className={`w-10 h-10 rounded-full items-center justify-center ${
-                    session.isAttended ? "bg-green-100" : "bg-red-100"
-                    }`}
-                >
-                    <Ionicons 
-                    name={session.isAttended ? "checkmark" : "close"} 
-                    size={20} 
-                    color={session.isAttended ? "#16A34A" : "#EF4444"} 
-                    />
+                    {/* Present Button */}
+                    <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => toggleMutation.mutate({ dayKey: session.dbKey, status: true })}
+                        className={`flex-1 py-3.5 rounded-xl flex-row justify-center items-center border ${
+                            session.isAttended 
+                              ? 'bg-[#00C897] border-[#00C897] shadow-sm' 
+                              : 'bg-white border-gray-200'
+                        }`}
+                    >
+                         <Ionicons 
+                            name="checkmark-circle" 
+                            size={20} 
+                            color={session.isAttended ? "white" : "#9CA3AF"} 
+                         />
+                         <Text className={`ml-2 font-bold ${session.isAttended ? 'text-white' : 'text-gray-500'}`}>
+                             Attend
+                         </Text>
+                    </TouchableOpacity>
                 </View>
-                </View>
-            </TouchableOpacity>
+            </View>
             ))
         )}
         
