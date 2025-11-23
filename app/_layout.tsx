@@ -29,6 +29,10 @@ export default function RootLayout() {
           name="(attendance)/[id]"
           options={{ headerTitle: "Attendance Details", headerShown: false }}
         />
+        <Stack.Screen
+          name="(settings)"
+          options={{ headerTitle: "Attendance Details", headerShown: false }}
+        />
       </Stack>
     </QueryClientProvider>
   );

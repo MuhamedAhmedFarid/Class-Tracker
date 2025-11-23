@@ -17,5 +17,5 @@
     "constants/images.js",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
-, "app/(attendance)/[id].jsx"  ]
+, "app/(attendance)/[id].jsx", "app/(tabs)/report.jsx", "app/(tabs)/students.tsx"  ]
 }

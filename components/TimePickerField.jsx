@@ -1,12 +1,13 @@
-import { MaterialIcons } from "@expo/vector-icons";
-import React, { useState } from "react";
-import { Modal, Platform, Text, TouchableOpacity, View } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { Clock } from "lucide-react-native"; // Switched to Lucide to match your project
+import { useState } from "react";
+import { Modal, Platform, Text, TouchableOpacity, View } from "react-native";
 
 const TimePickerField = ({ label, value, onChange, placeholder }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [selectedTime, setSelectedTime] = useState(new Date());
 
+  // Format Date object to "HH:MM AM/PM" string
   const formatTime = (date) => {
     if (!date) return "";
     const hours = date.getHours();
@@ -17,9 +18,11 @@ const TimePickerField = ({ label, value, onChange, placeholder }) => {
     return `${displayHours} : ${displayMinutes} ${period}`;
   };
 
+  // Parse "HH:MM AM/PM" string to Date object
   const parseTime = (timeString) => {
     if (!timeString) return new Date();
     
+    // Match time format: 9:00 AM or 09:00 AM or 9 : 00 AM
     const match = timeString.match(/(\d+)\s*:\s*(\d+)\s*(AM|PM)/i);
     if (match) {
       let hours = parseInt(match[1]);
@@ -57,6 +60,7 @@ const TimePickerField = ({ label, value, onChange, placeholder }) => {
         onChange(timeString);
       }
     } else {
+      // iOS logic: just update state, wait for confirm button
       if (date) {
         setSelectedTime(date);
       }
@@ -65,21 +69,23 @@ const TimePickerField = ({ label, value, onChange, placeholder }) => {
 
   return (
     <View>
-      {label && <Text className="text-gray-600 text-sm mb-1">{label}</Text>}
+      {label && <Text className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">{label}</Text>}
+      
       <TouchableOpacity
         onPress={handleOpen}
-        className="flex-row items-center border border-gray-300 rounded-lg p-3"
+        className="flex-row items-center bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4"
       >
         <Text
           className={`flex-1 text-base ${
-            value ? "text-gray-800" : "text-gray-400"
+            value ? "text-gray-900 dark:text-white" : "text-gray-400"
           }`}
         >
           {value || placeholder}
         </Text>
-        <MaterialIcons name="access-time" size={20} color="#999" />
+        <Clock size={20} color="#9CA3AF" />
       </TouchableOpacity>
 
+      {/* iOS Modal Overlay */}
       {Platform.OS === "ios" && isVisible && (
         <Modal
           visible={isVisible}
@@ -93,27 +99,29 @@ const TimePickerField = ({ label, value, onChange, placeholder }) => {
             className="flex-1 justify-center items-center bg-black/50"
           >
             <View
-              className="bg-white rounded-2xl p-6 w-11/12 max-w-sm"
+              className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-11/12 max-w-sm"
               onStartShouldSetResponder={() => true}
             >
+              <Text className="text-lg font-bold text-gray-900 dark:text-white mb-4 text-center">Select Time</Text>
               <DateTimePicker
                 value={selectedTime}
                 mode="time"
                 is24Hour={false}
                 display="spinner"
                 onChange={handleTimeChange}
-                style={{ backgroundColor: "white" }}
+                textColor={Platform.OS === 'ios' ? undefined : 'black'}
+                style={{ height: 120 }}
               />
-              <View className="flex-row justify-end gap-3 mt-4">
+              <View className="flex-row justify-end gap-3 mt-6">
                 <TouchableOpacity
                   onPress={() => setIsVisible(false)}
                   className="px-6 py-2 rounded-lg"
                 >
-                  <Text className="text-gray-600 text-base">Cancel</Text>
+                  <Text className="text-gray-600 dark:text-gray-400 text-base">Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={handleConfirm}
-                  className="px-6 py-2 rounded-lg bg-[#00C897]"
+                  className="px-6 py-2 rounded-lg bg-emerald-600"
                 >
                   <Text className="text-white text-base font-semibold">Confirm</Text>
                 </TouchableOpacity>
@@ -122,6 +130,8 @@ const TimePickerField = ({ label, value, onChange, placeholder }) => {
           </TouchableOpacity>
         </Modal>
       )}
+
+      {/* Android Native Picker */}
       {Platform.OS === "android" && isVisible && (
         <DateTimePicker
           value={selectedTime}
@@ -136,4 +146,3 @@ const TimePickerField = ({ label, value, onChange, placeholder }) => {
 };
 
 export default TimePickerField;
-

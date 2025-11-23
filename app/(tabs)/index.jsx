@@ -1,277 +1,246 @@
-import { Ionicons } from "@expo/vector-icons";
-import { useQuery } from "@tanstack/react-query";
-import { LinearGradient } from "expo-linear-gradient";
-import { useFocusEffect } from "expo-router"; // Import useFocusEffect
-import { StatusBar } from "expo-status-bar";
-import React, { useCallback, useEffect, useRef } from "react";
-import {
-  Animated,
-  FlatList,
-  RefreshControl,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import EmptyState from '../../components/EmptyState';
-import ErrorMsg from "../../components/ErrorMsg";
-import Spinner from "../../components/Spinner";
-import Student from "../../components/student";
-import "../../global.css";
-import { fetchTodayStudentsScheduled } from "../../services/StudentService";
+import { useRouter } from 'expo-router'; // Replacement for useNavigate
+import { Calendar, ChevronRight, Clock, Settings, User } from 'lucide-react-native';
+import React, { useMemo } from 'react';
+import { Image, Platform, ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 
-export default function Index() {
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+// --- MOCK DATA & TYPES ---
 
-  const {
-    data: classSessions,
-    isLoading,
-    isError,
-    refetch,
-    isRefetching,
-    error,
-  } = useQuery({
-    queryKey: ["todayStudentsScheduled"],
-    queryFn: fetchTodayStudentsScheduled,
+const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+// Helper to ensure we always have data for "Today" for testing purposes
+const getDynamicDays = (baseDays) => {
+  const todayIndex = new Date().getDay();
+  const todayName = DAYS_OF_WEEK[todayIndex];
+  // If the random check passes, add today to the student's schedule
+  return baseDays.includes(todayName) ? baseDays : [...baseDays, todayName];
+};
+
+const MOCK_STUDENTS = [
+  {
+    id: '1',
+    name: 'Ahmed Ali',
+    image_url: 'https://randomuser.me/api/portraits/men/32.jpg',
+    days_of_week: DAYS_OF_WEEK, // Everyday
+    start_time: '14:30',
+    end_time: '15:30',
+  },
+  {
+    id: '2',
+    name: 'Sarah Johnson',
+    image_url: 'https://randomuser.me/api/portraits/women/44.jpg',
+    days_of_week: getDynamicDays(['Monday', 'Wednesday']),
+    start_time: '09:00',
+    end_time: '10:30',
+  },
+  {
+    id: '3',
+    name: 'Karim Mahmoud',
+    image_url: null, // Test placeholder logic
+    days_of_week: getDynamicDays(['Tuesday', 'Thursday']),
+    start_time: '16:00',
+    end_time: '17:00',
+  },
+  {
+    id: '4',
+    name: 'Laila Hassan',
+    image_url: 'https://randomuser.me/api/portraits/women/65.jpg',
+    days_of_week: getDynamicDays(['Sunday']),
+    start_time: null, // Test no time logic
+    end_time: null,
+  }
+];
+
+// --- MOCK CONTEXT (Replace with your actual Context) ---
+const useAppContext = () => {
+  return {
+    t: (key) => {
+      const dict = {
+        todaysClasses: "Today's Classes",
+        totalStudents: "Total Students",
+        pending: "Pending",
+        noClasses: "No classes today",
+        enjoyDayOff: "Enjoy your day off!",
+        noTimeSet: "No time set",
+        errorLoading: "Error loading data"
+      };
+      return dict[key] || key;
+    },
+    language: 'en' // Change to 'ar' to test RTL logic
+  };
+};
+
+// --- UTILS ---
+const formatTime = (time) => {
+  if (!time) return '';
+  const [hours, minutes] = time.split(':');
+  const h = parseInt(hours, 10);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12}:${minutes} ${ampm}`;
+};
+
+// --- MAIN COMPONENT ---
+
+const index = () => {
+  const router = useRouter();
+  const { t, language } = useAppContext();
+
+  // Logic to determine today
+  const todayIndex = new Date().getDay();
+  const todayName = DAYS_OF_WEEK[todayIndex];
+
+  // --- DATA FILTERING LOGIC ---
+  // In real app, this comes from useQuery
+  const sortedStudents = useMemo(() => {
+    const todayClasses = MOCK_STUDENTS.filter(student => 
+      student.days_of_week.includes(todayName)
+    );
+
+    return todayClasses.sort((a, b) => {
+      if (a.start_time && b.start_time) {
+        return a.start_time.localeCompare(b.start_time);
+      }
+      return a.name.localeCompare(b.name);
+    });
+  }, [todayName]);
+
+  // Localization formatting
+  const locale = language === 'ar' ? 'ar-EG-u-nu-latn' : 'en-US';
+  const currentDateStr = new Date().toLocaleDateString(locale, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric'
   });
 
-  // Smooth Synchronization: Refetch whenever the screen is focused
-  useFocusEffect(
-    useCallback(() => {
-      refetch();
-    }, [])
-  );
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        tension: 50,
-        friction: 7,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
-
-  const date = new Date();
-  const dayName = date.toLocaleDateString("en-US", { weekday: "long" });
-  const fullDate = date.toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-  });
-
-  const sessionCount = classSessions ? classSessions.length : 0;
-
-  if (isLoading && !isRefetching && !classSessions) {
-    return (
-      <View className="flex-1 bg-gray-50 justify-center items-center">
-        <Spinner />
-      </View>
-    );
-  }
-
-  if (isError) {
-    return (
-      <View className="flex-1 bg-gray-50 justify-center px-4">
-        <ErrorMsg
-          msg={error ? error.message : "Unable to load today's sessions."}
-        />
-        <TouchableOpacity
-          onPress={() => refetch()}
-          className="mt-6 bg-[#00C897] py-3 px-6 rounded-full self-center shadow-lg"
-        >
-          <Text className="text-white font-semibold">Try Again</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  const isRTL = language === 'ar';
 
   return (
-    <View className="flex-1 bg-gray-50">
-      <StatusBar style="dark" />
-
-      <View className="absolute inset-0 overflow-hidden pointer-events-none">
-        <View
-          className="absolute -top-32 -right-32 w-64 h-64 bg-emerald-200 rounded-full opacity-20"
-          style={{ transform: [{ scale: 1.5 }] }}
-        />
-        <View
-          className="absolute -bottom-32 -left-32 w-64 h-64 bg-indigo-200 rounded-full opacity-20"
-          style={{ transform: [{ scale: 1.5 }] }}
-        />
-      </View>
-
-      <Animated.View
-        style={{ opacity: fadeAnim, transform: [{ scale: scaleAnim }] }}
-        className="bg-white pt-16 pb-8 px-6 rounded-b-[32px] shadow-lg z-10 border-b border-gray-100"
+    <View className="flex-1 bg-gray-50 dark:bg-gray-900">
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+      
+      <ScrollView 
+        contentContainerStyle={{ paddingBottom: 40 }}
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
       >
-        <View className="flex-row justify-between items-start">
-          <View className="flex-1">
-            <View className="flex-row items-center mb-2">
-              <Ionicons name="sparkles" size={16} color="#00C897" />
-              <Text className="text-xs font-bold text-[#00C897] uppercase tracking-widest ml-2">
-                {dayName}
-              </Text>
-            </View>
-            <Text className="text-4xl font-black text-gray-900 mb-1">
-              {fullDate}
+        {/* Header Section */}
+        <View className="bg-white dark:bg-gray-800 pt-12 pb-6 px-6 rounded-b-3xl shadow-sm border-b border-gray-100 dark:border-gray-700">
+          <View className={`flex-row justify-between items-center mb-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
+            <Text className="text-2xl font-bold text-gray-900 dark:text-white">
+              {t('todaysClasses')}
             </Text>
-            <Text className="text-sm text-gray-500 font-medium">
-              Your schedule for today
-            </Text>
+            
+            <TouchableOpacity 
+              onPress={() => router.push('(settings)')}
+              className="w-10 h-10 bg-gray-100 dark:bg-gray-700 rounded-full items-center justify-center"
+            >
+              <Settings size={20} className="text-gray-600 dark:text-gray-300" color={Platform.OS === 'ios' ? undefined : '#4B5563'} />
+            </TouchableOpacity>
           </View>
 
-          <View className="relative">
-            <LinearGradient
-              colors={["#00C897", "#00A67E"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              className="px-5 py-4 rounded-2xl items-center justify-center shadow-lg"
-            >
-              <Text className="text-white font-black text-3xl leading-tight">
-                {sessionCount}
+          <Text className={`text-emerald-600 dark:text-emerald-400 font-medium ${isRTL ? 'text-right' : 'text-left'}`}>
+            {currentDateStr}
+          </Text>
+
+          {/* Stats Cards */}
+          <View className={`mt-6 flex-row gap-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
+            <View className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-2xl flex-1">
+              <Text className={`text-emerald-800 dark:text-emerald-300 text-xs font-bold uppercase tracking-wider ${isRTL ? 'text-right' : 'text-left'}`}>
+                {t('totalStudents')}
               </Text>
-              <Text className="text-white text-[9px] font-bold uppercase tracking-wider opacity-90">
-                Classes
+              <Text className={`text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1 ${isRTL ? 'text-right' : 'text-left'}`}>
+                {sortedStudents.length}
               </Text>
-            </LinearGradient>
-            <View
-              className="absolute inset-0 bg-[#00C897] rounded-2xl opacity-30 blur-xl"
-              style={{ transform: [{ scale: 1.1 }], zIndex: -1 }}
-            />
+            </View>
+
+            <View className="bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700 p-4 rounded-2xl flex-1">
+              <Text className={`text-gray-500 dark:text-gray-400 text-xs font-bold uppercase tracking-wider ${isRTL ? 'text-right' : 'text-left'}`}>
+                {t('pending')}
+              </Text>
+              <Text className={`text-2xl font-bold text-gray-400 dark:text-gray-500 mt-1 ${isRTL ? 'text-right' : 'text-left'}`}>
+                -
+              </Text>
+            </View>
           </View>
         </View>
-      </Animated.View>
 
-      {!classSessions || classSessions.length === 0 ? (
-        <Animated.View style={{ opacity: fadeAnim, flex: 1 }}>
-          <FlatList 
-            data={[]}
-            renderItem={null}
-            contentContainerStyle={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
-            refreshControl={
-              <RefreshControl
-                refreshing={isRefetching}
-                onRefresh={refetch}
-                tintColor="transparent" 
-                colors={['transparent']} 
-              />
-            }
-            ListHeaderComponent={
-               isRefetching ? (
-                  <View className="py-10 items-center justify-center">
-                    <Spinner />
-                  </View>
-               ) : (
-                 <EmptyState onPress={refetch} buttonText="Refresh Schedule" />
-               )
-            }
-          />
-        </Animated.View>
-      ) : (
-        <FlatList
-          data={classSessions}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{
-            paddingHorizontal: 20,
-            paddingTop: 28,
-            paddingBottom: 120,
-          }}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefetching}
-              onRefresh={refetch}
-              tintColor="transparent" 
-              colors={['transparent']} 
-              style={{ backgroundColor: 'transparent' }}
-            />
-          }
-          keyExtractor={(item, index) => `${item.id}-${index}`}
-          
-          ListHeaderComponent={
-            <View>
-              {isRefetching && (
-                <View className="py-6 items-center justify-center w-full mb-2">
-                  <Spinner />
-                </View>
-              )}
-              <Animated.View
-                style={{ opacity: fadeAnim }}
-                className="mb-6 flex-row items-center"
-              >
-                <LinearGradient
-                  colors={["#00C897", "#6366F1"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 0, y: 1 }}
-                  className="w-1 h-8 rounded-full mr-3"
-                />
-                <Text className="text-2xl font-black text-gray-900">
-                  Today's Timeline
-                </Text>
-                <View className="h-[1px] flex-1 bg-gray-300 ml-4" />
-              </Animated.View>
-            </View>
-          }
-
-          renderItem={({ item }) => (
-            <Animated.View
-              style={{
-                opacity: fadeAnim,
-                transform: [
-                  {
-                    translateY: fadeAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [20, 0],
-                    }),
-                  },
-                ],
-              }}
-            >
-              <View className="mb-4">
-                <Student
-                  current={item.current}
-                  sDate={item.startDate}
-                  eDate={item.endDate}
-                  name={item.name}
-                />
+        {/* List Section */}
+        <View className="px-4 mt-6">
+          {sortedStudents.length === 0 ? (
+            <View className="items-center justify-center py-20">
+              <View className="bg-gray-100 dark:bg-gray-800 p-4 rounded-full mb-4">
+                <Calendar size={32} color="#9CA3AF" />
               </View>
-            </Animated.View>
+              <Text className="text-lg font-medium text-gray-500 dark:text-gray-400">
+                {t('noClasses')}
+              </Text>
+              <Text className="text-sm text-gray-400 dark:text-gray-500 mt-1">
+                {t('enjoyDayOff')}
+              </Text>
+            </View>
+          ) : (
+            <View className="gap-3">
+              {sortedStudents.map((student) => (
+                <TouchableOpacity
+                  key={student.id}
+                  onPress={() => router.push(`(attendance)/${student.id}`)}
+                  activeOpacity={0.7}
+                  className={`bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex-row items-center ${isRTL ? 'flex-row-reverse' : ''}`}
+                  // Elevation for Android Shadows
+                  style={{ elevation: 2 }} 
+                >
+                  {/* Avatar */}
+                  <View className={`w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden border border-gray-200 dark:border-gray-600 ${isRTL ? 'ml-4' : 'mr-4'}`}>
+                    {student.image_url ? (
+                      <Image 
+                        source={{ uri: student.image_url }} 
+                        className="w-full h-full"
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View className="w-full h-full items-center justify-center">
+                        <User size={20} color="#9CA3AF" />
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Info */}
+                  <View className="flex-1">
+                    <Text className={`text-base font-bold text-gray-900 dark:text-white ${isRTL ? 'text-right' : 'text-left'}`}>
+                      {student.name}
+                    </Text>
+                    
+                    <View className={`flex-row items-center mt-1 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                      {student.start_time ? (
+                        <View className={`flex-row items-center bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1 rounded-md ${isRTL ? 'flex-row-reverse' : ''}`}>
+                          <Clock size={12} color="#059669" className={isRTL ? "ml-1" : "mr-1"} />
+                          <Text className="text-emerald-600 dark:text-emerald-400 text-xs font-bold">
+                            {formatTime(student.start_time)}
+                            {student.end_time ? ` - ${formatTime(student.end_time)}` : ''}
+                          </Text>
+                        </View>
+                      ) : (
+                        <Text className="text-xs text-gray-400 italic">
+                          {t('noTimeSet')}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+
+                  {/* Chevron */}
+                  <ChevronRight 
+                    size={20} 
+                    color="#D1D5DB" 
+                    style={{ transform: [{ rotate: isRTL ? '180deg' : '0deg' }] }}
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
           )}
-          
-          ListFooterComponent={
-            sessionCount > 0 ? (
-              <Animated.View
-                style={{ opacity: fadeAnim }}
-                className="mt-6 bg-emerald-50 rounded-2xl p-6 border border-emerald-100"
-              >
-                <View className="flex-row justify-between items-center">
-                  <View>
-                    <Text className="text-xs text-gray-600 mb-1 font-medium">
-                      Total Teaching Time
-                    </Text>
-                    <Text className="text-2xl font-black text-gray-900">
-                      {sessionCount} {sessionCount === 1 ? "hour" : "hours"}
-                    </Text>
-                  </View>
-                  <View className="items-end">
-                    <Text className="text-xs text-gray-600 mb-1 font-medium">
-                      Students
-                    </Text>
-                    <Text className="text-2xl font-black text-gray-900">
-                      {sessionCount}
-                    </Text>
-                  </View>
-                </View>
-              </Animated.View>
-            ) : null
-          }
-        />
-      )}
+        </View>
+      </ScrollView>
     </View>
   );
-}
+};
+
+export default index;
